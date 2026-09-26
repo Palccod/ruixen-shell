@@ -167,6 +167,32 @@ check "setPinSide sweeps all three sections (left/center/right), not just the cl
 check "setPinSide uses mutateShellConfig, the same primitive the bar's own drag-reorder already uses" \
   "$(grep -c 'bar\.shell\.mutateShellConfig(function' "$widget_qml")" "1"
 
+# Issue #75: setPinSide used to always re-add a bare { id: id } on every
+# move/re-pin, silently dropping any other field (openExpanded, a custom
+# setting, or an entire inline/custom widget definition's own type/exec/
+# interval/onClick). Static source checks only, same reasoning as every
+# other check in this file (no live Quickshell instance in CI) -- these
+# pin the actual data flow (capture order, cache write, fallback chain)
+# rather than just the literal strings already covered above.
+check "a session-only lastKnownEntry cache exists (there is no other place to hold an unpinned widget's settings)" \
+  "$(grep -c 'property var lastKnownEntry' "$widget_qml")" "1"
+
+capture_line="$(grep -n 'var existingEntry = null' "$widget_qml" | head -1 | cut -d: -f1)"
+cache_write_line="$(grep -n 'if (existingEntry) root\.lastKnownEntry\[id\] = existingEntry' "$widget_qml" | head -1 | cut -d: -f1)"
+removal_line="$(grep -n 'config\.bar\.layout\[name\] = config\.bar\.layout\[name\]\.filter' "$widget_qml" | head -1 | cut -d: -f1)"
+push_line="$(grep -n 'existingEntry || root\.lastKnownEntry\[id\] || { id: id }' "$widget_qml" | head -1 | cut -d: -f1)"
+
+check "the live entry is captured BEFORE the removal sweep runs (capturing after would always see it already gone)" \
+  "$([[ -n "$capture_line" && -n "$removal_line" && "$capture_line" -lt "$removal_line" ]] && echo yes || echo no)" "yes"
+check "a captured entry is written into lastKnownEntry before the removal sweep runs (so an unpin still remembers it)" \
+  "$([[ -n "$cache_write_line" && -n "$removal_line" && "$cache_write_line" -lt "$removal_line" ]] && echo yes || echo no)" "yes"
+check "the removal sweep runs BEFORE any re-add push (prevents duplicates on a move)" \
+  "$([[ -n "$removal_line" && -n "$push_line" && "$removal_line" -lt "$push_line" ]] && echo yes || echo no)" "yes"
+check "the re-add prefers the live entry, then the session cache, and only then a bare { id: id }, in that order" \
+  "$(grep -c 'existingEntry || root\.lastKnownEntry\[id\] || { id: id }' "$widget_qml")" "1"
+check "no bare { id: id } push remains as the ONLY option (issue #75's original data-loss bug)" \
+  "$(grep -c '\.push({ id: id })' "$widget_qml" || true)" "0"
+
 check "the row's own MouseArea accepts both left and right click" \
   "$(grep -c 'acceptedButtons: Qt\.LeftButton | Qt\.RightButton' "$widget_qml")" "1"
 check "left-click pins right, right-click pins left (Qt.RightButton ternary)" \
