@@ -279,6 +279,30 @@ BarWidget {
     return out
   }
 
+  // Issue #75: this used to always re-add a bare { id: id } on every
+  // move/re-pin, silently dropping any other field the entry carried
+  // (openExpanded, a plugin-owned custom setting, or an entire inline/
+  // custom widget definition's own type/exec/interval/onClick). PR #74
+  // fixed the same class of data loss for the first-takeover path by
+  // carrying the whole layout entry instead of just its id -- this is
+  // that same rule applied to the in-app pin/move path.
+  //
+  // Session-only memory of the last full entry seen for a given id --
+  // needed because once a widget is FULLY unpinned, shell.json's own
+  // bar.layout (the only place this widget's settings ever lived) has
+  // nowhere left to hold them: there is no existing persistence
+  // mechanism for an already-unpinned entry's settings. Rather than
+  // inventing a new state file/IPC channel just to cover that one
+  // window, the smallest safe fix is a plain in-memory cache scoped to
+  // this widget's own instance -- it only survives for as long as this
+  // exact icon (this bar surface) stays alive, so a shell restart, or
+  // unpinning from one monitor's popup and re-pinning from a
+  // DIFFERENT monitor's, forgets it and falls back to a bare { id }
+  // same as before this fix. Documented limitation, not a bug: a full
+  // persisted-unpin-state system is out of scope here (see this
+  // issue's own scope guard).
+  property var lastKnownEntry: ({})
+
   // Direct request, after drag-and-drop turned out to have no way to
   // populate an initially-empty left-side group ("can we do right
   // click and left click to send it to the new group on the left or
@@ -299,17 +323,44 @@ BarWidget {
       var sections = ["left", "center", "right"]
       var wasOnClickedSide = Array.isArray(config.bar.layout[side])
         && config.bar.layout[side].some(function(e) { return e && e.id === id })
+
+      // Capture the real, currently-live entry object (whatever fields
+      // it carries) BEFORE it gets filtered out below -- this, not a
+      // freshly built { id: id }, is what actually gets carried over.
+      // Sweeps every section, same as the removal loop right after it
+      // (in case a stray duplicate ever exists, same defensive reason
+      // that loop already sweeps all three instead of just the clicked
+      // side).
+      var existingEntry = null
       for (var i = 0; i < sections.length; i++) {
-        var name = sections[i]
+        var list = config.bar.layout[sections[i]]
+        if (!Array.isArray(list)) continue
+        for (var j = 0; j < list.length; j++) {
+          if (list[j] && list[j].id === id) { existingEntry = list[j]; break }
+        }
+        if (existingEntry) break
+      }
+      if (existingEntry) root.lastKnownEntry[id] = existingEntry
+
+      for (var k = 0; k < sections.length; k++) {
+        var name = sections[k]
         if (!Array.isArray(config.bar.layout[name])) continue
         config.bar.layout[name] = config.bar.layout[name].filter(function(e) {
           return !e || e.id !== id
         })
       }
+
       if (!wasOnClickedSide) {
         if (!Array.isArray(config.bar.layout[side])) config.bar.layout[side] = []
-        config.bar.layout[side].push({ id: id })
+        // Whatever full entry is available -- live (existingEntry), or
+        // remembered from an earlier unpin this session (lastKnownEntry)
+        // -- wins over a rebuilt bare { id }, so no field already known
+        // to exist is ever silently dropped on a move or re-pin.
+        config.bar.layout[side].push(existingEntry || root.lastKnownEntry[id] || { id: id })
       }
+      // wasOnClickedSide (unpin): already captured into lastKnownEntry
+      // above, and the removal sweep already dropped it from the
+      // layout -- nothing further to do.
     })
   }
 
