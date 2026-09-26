@@ -82,7 +82,12 @@ fi
 home2="$(mktemp -d)"
 homes+=("$home2")
 mkdir -p "$home2/.config/omarchy"
-printf '%s' '{"version":1,"some_third_party_key":"left alone","bar":{"id":"local.other-bar"},"plugins":[{"id":"third.party","hidden":[]}],"idle":{"lock":42,"screensaver":7}}' \
+# The foreign bar carries a real, populated layout on purpose -- this
+# fixture used to be layout-less, which hid a first-install regression
+# end to end: taking over the bar slot discarded every third-party
+# entry the outgoing bar was carrying (see tests/shell-json-merge.sh
+# Case 14 for the unit-level version).
+printf '%s' '{"version":1,"some_third_party_key":"left alone","bar":{"id":"local.other-bar","layout":{"left":[],"center":[],"right":[{"id":"third.party","openExpanded":true}]}},"plugins":[{"id":"third.party","hidden":[]}],"idle":{"lock":42,"screensaver":7}}' \
   > "$home2/.config/omarchy/shell.json"
 if run_install "$home2"; then status2=0; else status2=$?; fi
 check "customized install: exits 0" "$status2" "0"
@@ -96,6 +101,9 @@ if [[ "$status2" -eq 0 ]]; then
     "$(jq -c '.idle' "$home2/.config/omarchy/shell.json")" '{"lock":42,"screensaver":7}'
   check "customized install: ruixen still took over the bar slot" \
     "$(jq -r '.bar.id' "$home2/.config/omarchy/shell.json")" "ruixen.bar"
+  check "customized install: the outgoing bar's third-party widget was carried into ruixen's layout, settings intact" \
+    "$(jq -c '.bar.layout.right[] | select(.id == "third.party")' "$home2/.config/omarchy/shell.json")" \
+    '{"id":"third.party","openExpanded":true}'
 
   # Reinstalling over its own prior output must be a true no-op.
   before_reinstall="$(jq -S . "$home2/.config/omarchy/shell.json")"

@@ -16,6 +16,12 @@
 #     runtime-mutable state living inside this same object, not static
 #     config, so replacing it wholesale on every reinstall would
 #     silently revert both back to the hardcoded default every time.
+#     On that first takeover the canonical object is NOT installed
+#     bare: every foreign entry in the outgoing bar's own layout (a
+#     third-party widget, an inline type:"command" button) is carried
+#     across into it, whole and in its original region. Only the stock
+#     omarchy.* widgets Ruixen actually supersedes are dropped --
+#     see supersededIds below, and $ownedBar for the full why.
 #   - plugins: every existing entry (ruixen-owned or not) is left
 #     completely untouched; only a Ruixen id that isn't present AT ALL
 #     gets a fresh bare {id} entry appended. Idempotent (never
@@ -127,6 +133,36 @@ center_special_ids='["ruixen.weather", "omarchy.clock"]'
 # preview and every test in tests/shell-json-merge.sh that doesn't set it.
 orphan_plugin_ids="${RUIXEN_ORPHAN_PLUGIN_IDS_JSON:-[]}"
 
+# The stock omarchy.* bar widgets Ruixen deliberately supersedes, used
+# ONLY by the foreign-entry carry-over below (see $ownedBar) -- these
+# are dropped rather than carried across when ruixen.bar first takes
+# over somebody else's bar, because Ruixen already ships the same
+# information somewhere else and carrying them would hand the user two
+# of everything on their first launch.
+#
+# Mirrors ruixen.pluginpins/BarWidget.qml's own excludedIds (its
+# omarchy.* half -- the ruixen.* half is already in the canonical
+# layout, so it never reaches this list), same keep-both-in-sync deal
+# as centerSpecialIds above. That list is the one place in the repo
+# that already had to answer "which stock widget does Ruixen replace,
+# and with what" -- every id there carries its own reason comment --
+# so reusing its answer here is what stops install and the pin
+# dropdown from disagreeing about what Ruixen supersedes.
+#
+# Deliberately NOT in this list, and therefore carried: omarchy.network,
+# omarchy.audio, omarchy.bluetooth, omarchy.monitor, omarchy.tailscale,
+# omarchy.microphone. pluginpins offers all of those in its dropdown
+# (they are absent from excludedIds), so Ruixen's own answer is that
+# they remain legitimate bar widgets under Ruixen -- dropping them on
+# install would contradict a dropdown that immediately invites you to
+# put them back.
+superseded_ids='[
+  "omarchy.clock", "omarchy.system-update", "omarchy.power",
+  "omarchy.keyboard-layout", "omarchy.indicators",
+  "omarchy.bar", "omarchy.menu", "omarchy.spacer", "omarchy.active-window",
+  "omarchy.workspaces", "omarchy.tray", "omarchy.weather", "omarchy.media"
+]'
+
 existing_json="$(cat)"
 
 jq -n \
@@ -136,7 +172,15 @@ jq -n \
   --argjson centerSpecialIds "$center_special_ids" \
   --argjson defaultIdle "$default_idle_json" \
   --argjson orphanPluginIds "$orphan_plugin_ids" \
+  --argjson supersededIds "$superseded_ids" \
   '
+  # Same helper, same spelling, as lib/merge-uninstall-bar.sh own copy
+  # -- the two scripts are mirror images of each other (that one carries
+  # foreign entries OUT of Ruixen own layout on uninstall, this one
+  # carries them IN on install), so they walk a layout the same way.
+  def flattenRegions:
+    [ ("left","center","right") as $r | (.layout[$r] // [])[] | {region: $r, entry: .} ];
+
   # bar: only installed fresh the first time ruixen.bar takes over the
   # bar slot (no bar yet, or some other bar active). Once ruixen.bar
   # already owns it, the WHOLE object is left exactly as-is on a
@@ -148,7 +192,64 @@ jq -n \
   # reinstall would silently revert both back to the hardcoded default
   # every time, which is exactly the kind of data loss this issue
   # exists to prevent, just one level deeper than a first pass assumed.
-  (if ($existing.bar.id // "") == "ruixen.bar" then $existing.bar else $ruixenBar end) as $ownedBar
+  #
+  # Taking over the bar slot is NOT the same as throwing away what was
+  # on it. Until this carry-over existed, a first install over a stock
+  # omarchy.bar replaced the whole object, layout included, and every
+  # third-party widget entry in it (a Hue remote, a Todoist panel, a
+  # prayer-times pill, an inline type:"command" button, ...) was simply
+  # gone from the bar -- the plugins stayed installed and enabled, so
+  # nothing looked broken, the widgets just silently stopped being
+  # placed anywhere. Reported by a real user on a real first install,
+  # not a hypothetical.
+  #
+  # The uninstall side already solved exactly this, in the opposite
+  # direction, under #26 (lib/merge-uninstall-bar.sh: "preserve
+  # third-party bar widgets a user added while Ruixen is installed").
+  # Install having no mirror of it was an asymmetry, not a decision.
+  # merge-uninstall-bar.sh cannot be reused as-is here: it treats every
+  # canonical id as owned-and-therefore-dropped, which is the exact
+  # inverse of what install needs (keep all of canonical, add what is
+  # foreign to it).
+  #
+  # What carries: any entry whose id is in neither the canonical layout
+  # nor supersededIds, appended to the end of the region it was already
+  # in -- the region is the user own placement decision, and Bar.qml own
+  # per-region catch-alls (pluginPinsPill right, leftPluginPinsPill
+  # left, centerGenericPill center) already render an arbitrary foreign
+  # id in any of the three, so there is nowhere it needs relocating to.
+  # The WHOLE entry object comes across, not a bare {id}: inline
+  # settings are the widget own configuration (openExpanded, hidden,
+  # and for an inline custom module the type/exec/interval/onClick that
+  # ARE the widget), and a bare-{id} carry would quietly reset every one
+  # of them -- the same trap ruixen.pluginpins own setPinSide already
+  # falls into on unpin/repin.
+  #
+  # id-less entries cannot be matched against anything, so they carry
+  # unconditionally in their own region, same conservative call (and
+  # same reasoning) as merge-uninstall-bar.sh own idless handling: an
+  # oddly-shaped entry surviving where it already was beats destroying
+  # a real one.
+  (if ($existing.bar.layout | type) == "object" then
+       ($ruixenBar | flattenRegions | map(.entry.id // empty)) as $canonicalIds
+       # `.entry.id as $id |` is REQUIRED, not cosmetic -- inside
+       # `$canonicalIds | index(...)` the `.` has already rebound to
+       # $canonicalIds itself, so an uncaptured `.entry.id` indexes that
+       # ARRAY and dies with `Cannot index array with string ("entry")`.
+       # Same trap, same fix, as merge-uninstall-bar.sh own resolve step
+       # documents; walked straight into it here too before capturing.
+       | ($existing.bar | flattenRegions
+          | map(.entry.id as $id
+              | select($id == null
+                  or (($canonicalIds | index($id)) == null
+                      and ($supersededIds | index($id)) == null)))) as $foreign
+       | reduce ("left","center","right") as $region
+           ($ruixenBar;
+             .layout[$region] = ((.layout[$region] // [])
+               + [$foreign[] | select(.region == $region) | .entry]))
+     else $ruixenBar end) as $ruixenBarWithForeign
+
+  | (if ($existing.bar.id // "") == "ruixen.bar" then $existing.bar else $ruixenBarWithForeign end) as $ownedBar
 
   # ruixen.media is deliberately never a real bar-widget entry (its own
   # oversized play/pause badge -- see ruixen-bar-canonical.json own

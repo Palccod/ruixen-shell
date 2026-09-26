@@ -56,7 +56,7 @@ check "customized: ruixen plugin ids present exactly once each (idempotent, not 
   '["ruixen.cava","ruixen.launcher","ruixen.media","ruixen.notch","ruixen.settings","ruixen.wallpaper","third-party.widget"]'
 check "customized: user's own idle values are preserved, not overwritten" \
   "$(jq -c '.idle' <<<"$out2")" '{"lock":900,"screensaver":600}'
-check "customized: bar is replaced with ruixen's own (some OTHER bar was active -- installing ruixen.bar means owning the bar slot)" \
+check "customized: bar becomes ruixen's own (some OTHER bar was active -- installing ruixen.bar means owning the bar slot; this fixture's bar is layout-less, so there is nothing to carry across -- see Case 14 for the layout case)" \
   "$(jq -r '.bar.id' <<<"$out2")" "ruixen.bar"
 
 # --- Case 3: re-running the merge on its own prior output is a no-op
@@ -439,6 +439,94 @@ check "center rescue: left keeps everything else, the stranded clock duplicate r
 check "center rescue: right keeps everything else, weather removed" \
   "$(jq -c '.bar.layout.right' <<<"$out13b")" \
   '[{"id":"ruixen.tray"},{"id":"ruixen.pluginpins"},{"id":"ruixen.capturestatus"}]'
+
+# --- Case 14: real user report -- a FIRST install over a populated
+# stock omarchy bar. Case 2 already covers a foreign bar, but its
+# fixture has no `layout` key at all, so the wholesale layout discard
+# it used to do was invisible to the whole suite (the same blind spot
+# exists in tests/install-lifecycle.sh's own foreign-bar fixture, fixed
+# alongside this). Reported symptom: install, and every third-party bar
+# widget silently stops being placed anywhere -- plugins still
+# installed, still enabled, just gone from the bar.
+#
+# The fixture is the reporter's real pre-install layout, trimmed: a
+# left-side third-party pill, an inline type:"command" button and a
+# third-party panel in center, several third-party widgets in right,
+# mixed in with the stock omarchy.* widgets Ruixen supersedes.
+populated_foreign_bar='{
+  "version": 1,
+  "bar": {
+    "centerAnchor": "omarchy.clock",
+    "position": "top",
+    "layout": {
+      "left": [
+        { "id": "omarchy.menu" },
+        { "id": "omarchy.workspaces" },
+        { "id": "local.prayer-times" }
+      ],
+      "center": [
+        { "id": "omarchy.indicators" },
+        {
+          "id": "gamemode",
+          "type": "command",
+          "exec": "~/.local/bin/omarchy-toggle-gamemode --status",
+          "interval": 1,
+          "onClick": "~/.local/bin/omarchy-toggle-gamemode"
+        },
+        { "id": "omarchy.clock" },
+        { "id": "omarchy.keyboard-layout" },
+        { "id": "xak47d.todoist" }
+      ],
+      "right": [
+        { "id": "omarchy.tray" },
+        { "id": "lunardi0x01.hue-room-remote" },
+        { "id": "stappmus.activity-monitor", "openExpanded": true },
+        { "id": "omarchy.tailscale" },
+        { "id": "omarchy.audio" },
+        { "id": "omarchy.power" }
+      ]
+    }
+  },
+  "plugins": []
+}'
+out14="$(printf '%s' "$populated_foreign_bar" | "$build")"
+check "first takeover: bar.id becomes ruixen.bar" \
+  "$(jq -r '.bar.id' <<<"$out14")" "ruixen.bar"
+check "first takeover: every canonical ruixen id is present" \
+  "$(jq -c '[.bar.layout[][] | .id] | map(select(startswith("ruixen."))) | sort' <<<"$out14")" \
+  '["ruixen.applauncher","ruixen.capturestatus","ruixen.pinnedapps","ruixen.pluginpins","ruixen.quickactions","ruixen.settingsbutton","ruixen.stayawake","ruixen.tray","ruixen.weather","ruixen.workspaces"]'
+check "first takeover: left-side third-party widget survives, in left" \
+  "$(jq -c '.bar.layout.left | map(.id)' <<<"$out14")" \
+  '["ruixen.applauncher","ruixen.workspaces","ruixen.pinnedapps","local.prayer-times"]'
+check "first takeover: center third-party entries survive, in center" \
+  "$(jq -c '.bar.layout.center | map(.id)' <<<"$out14")" \
+  '["ruixen.weather","omarchy.clock","gamemode","xak47d.todoist"]'
+check "first takeover: right third-party widgets survive, in right" \
+  "$(jq -c '.bar.layout.right | map(.id) | map(select(startswith("ruixen.") | not))' <<<"$out14")" \
+  '["omarchy.agents","omarchy.system-update","omarchy.power","lunardi0x01.hue-room-remote","stappmus.activity-monitor","omarchy.tailscale","omarchy.audio"]'
+# The whole point of carrying the entry object rather than a bare {id}:
+# for an inline custom module the type/exec/interval/onClick ARE the
+# widget, and for a plugin its inline settings are its configuration.
+check "first takeover: inline command entry carries across whole, byte for byte" \
+  "$(jq -cS '.bar.layout.center[] | select(.id == "gamemode")' <<<"$out14")" \
+  '{"exec":"~/.local/bin/omarchy-toggle-gamemode --status","id":"gamemode","interval":1,"onClick":"~/.local/bin/omarchy-toggle-gamemode","type":"command"}'
+check "first takeover: a third-party widget's own inline setting survives" \
+  "$(jq -c '.bar.layout.right[] | select(.id == "stappmus.activity-monitor")' <<<"$out14")" \
+  '{"id":"stappmus.activity-monitor","openExpanded":true}'
+# Superseded: Ruixen ships the same information elsewhere, so carrying
+# these would hand the user two of everything. The list mirrors
+# ruixen.pluginpins' own excludedIds -- omarchy.tailscale/omarchy.audio
+# above are deliberately NOT in it (that dropdown offers both), which
+# is why they carried.
+check "first takeover: superseded stock widgets are dropped, not carried" \
+  "$(jq -c '[.bar.layout[][] | .id] | map(select(. == "omarchy.menu" or . == "omarchy.workspaces" or . == "omarchy.tray" or . == "omarchy.indicators" or . == "omarchy.keyboard-layout"))' <<<"$out14")" \
+  '[]'
+
+# --- Case 14b: the carry-over must not re-run once ruixen.bar owns the
+# bar -- otherwise every later update would re-append the same foreign
+# entries it already carried the first time.
+out14b="$(printf '%s' "$out14" | "$build")"
+check "first takeover: re-merging the carried-over result is a no-op" "$out14b" "$out14"
 
 # --- Case 5: invalid JSON input is rejected, not silently swallowed
 if printf 'not json at all' | "$build" >/dev/null 2>&1; then
