@@ -113,6 +113,19 @@ building blocks — reuse or extend them before writing a new variant.
   Ruixen-owned config.
 - Install/update/uninstall must be idempotent and ownership-aware (safe
   to re-run, and only ever touches what Ruixen actually owns).
+- **Install and uninstall must stay symmetric about user data.** Any
+  "preserve the user's foreign X" rule one side learns, the other side
+  needs too. Real incident: `#26` taught *uninstall* to carry third-party
+  bar-layout entries across (`lib/merge-uninstall-bar.sh`), but install
+  kept replacing the whole `bar` object on first takeover, so a stock
+  omarchy bar's third-party widgets silently stopped being placed — the
+  plugins stayed installed and enabled, nothing errored, they just
+  vanished from the bar. Fixed in `lib/build-shell-json.sh`'s
+  `$ownedBar`. When adding a lifecycle preservation rule, ask what the
+  opposite operation does with the same data, and give both sides a test.
+- A fixture that omits the field under test proves nothing. Every
+  foreign-bar fixture in the suite was layout-*less*, which is exactly
+  why the above survived a green `run-all.sh` for that long.
 - Use the existing transactional/manifest/rollback paths in `install.sh`/
   `update.sh`/`uninstall.sh` rather than inventing parallel lifecycle
   logic.
