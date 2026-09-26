@@ -57,6 +57,7 @@ check "looknfeel.half.lua keeps the launcher frost layer rule" \
 check "ruixen-lookfeel.sh usage documents half" \
   "$(grep -m1 'Usage: ruixen-lookfeel <on|off|half|square|status>' "$lookfeel")" 'Usage: ruixen-lookfeel <on|off|half|square|status>'
 
+# shellcheck disable=SC2016 # deliberately literal: expected script text contains $looknfeel_data_dir.
 check "ruixen-lookfeel.sh applies the half variant" \
   "$(grep -m1 'looknfeel.half.lua' "$lookfeel")" \
   '    apply "half (rounded at half the radius, 12)" "$looknfeel_data_dir/looknfeel.half.lua"'
@@ -122,6 +123,7 @@ check "Bar.qml: no stale sharpCorners left behind (any case -- catches onSharpCo
   "$(grep -ci 'sharpcorners' "$bar_qml")" "0"
 
 # --- The suite itself is registered -------------------------------------
+# shellcheck disable=SC2016 # deliberately literal: expected run-all entry contains $script_dir.
 check "tests/run-all.sh runs this suite" \
   "$(grep -m1 'curvature-half-option.sh' "$run_all")" \
   '  "$script_dir/curvature-half-option.sh"'

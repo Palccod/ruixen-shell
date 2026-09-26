@@ -288,6 +288,7 @@ check "Done footer dial does not wrap the remaining-track arc at 100%" \
   "1"
 
 # --- Registration -------------------------------------------------------
+# shellcheck disable=SC2016 # deliberately literal: expected run-all entry contains $script_dir.
 check "tests/run-all.sh runs this suite" \
   "$(grep -m1 'notch-kanban-gui.sh' "$run_all")" \
   '  "$script_dir/notch-kanban-gui.sh"'

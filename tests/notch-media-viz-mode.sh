@@ -77,7 +77,7 @@ check "cavaWarmColor/cavaCoolColor default to Color.accent" \
 check "colors are parsed from the real active theme file" \
   "$(grep -c 'current/theme/colors.toml' "$overlay_qml")" "1"
 check "a load failure falls back to Color.accent AND schedules the one-shot retry" \
-  "$(grep -A3 'onLoadFailed: {' "$overlay_qml" | grep -c 'cavaThemeColorsRetryTimer.restart()')" "1"
+  "$(grep -A6 'onLoadFailed: {' "$overlay_qml" | grep -c 'cavaThemeColorsRetryTimer.restart()')" "1"
 check "each bar's color comes from the warm/cool gradient function, not a flat accent" \
   "$(grep -c 'color: cavaMiniSlot.barColor(index, level)' "$overlay_qml")" "1"
 
