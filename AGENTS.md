@@ -256,6 +256,38 @@ this before touching any of the three.
   of this same surface, copy the recipe that's already been tuned
   against the others (`notchShadowBlur`), not whatever other mask-safe
   example happens to be nearby in the file.
+- **A `Connections` block watching a derived property can fire once and
+  then go silent, even while the underlying data keeps updating
+  correctly.** The chrome-surface refactor (#81) split the docked bar's
+  visual chrome into its own frame-owned Canvas, fed by geometry
+  published from `BarPanel`'s own widget row into a per-screen metrics
+  map (`dockChromeMetricsByScreen`). Two Canvases each watched a small
+  `Item`'s own derived `readonly property int leftWidth/rightX/
+  rightWidth` (themselves bound to that published metrics object) via
+  `Connections { target: dockChrome; function onRightWidthChanged() {
+  requestPaint() } }` — syntactically ordinary, and it DID paint once,
+  right when the chrome first became visible. But every metrics update
+  after that point (pinned widgets/launcher icons growing the bar's own
+  content live) never triggered another repaint, even though a live
+  debug trace confirmed the published metrics themselves kept updating
+  correctly the whole time — the background chrome just silently
+  stopped tracking, leaving newer icons rendering on bare wallpaper past
+  its own frozen edge. A live report ("as i add more stuff to the pin
+  plugin... the dock size isnt like moving or getting larger anymore,
+  its like static bar") is what surfaced it; a full-width Canvas visibly
+  short of its own content, on an otherwise-correct build, is the
+  signature to watch for. Root-caused with a live debug trace (temp
+  `FileView` logging every publish/read/paint with timestamps —
+  `omarchy restart shell` + `cat` the log beats guessing here) rather
+  than more static reading once the metrics-vs-render mismatch was
+  visually confirmed. Fixed by pointing the `Connections` at the one
+  signal already proven reliable across every update in that same trace
+  (`frameWindow`'s own `dockChromeMetricsChanged`) instead of the
+  derived `Item`'s own per-property change signals one layer downstream
+  — don't assume a `Connections` block "should" work just because it
+  compiles and fires once; when something intermittently stops updating
+  live, verify the *specific* signal it's listening to is the one
+  that's actually still firing on every change, not just the first.
 
 ## 10. Keeping this file useful
 

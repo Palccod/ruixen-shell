@@ -2145,13 +2145,26 @@ Item {
           dockChrome.dockPath(ctx, root.surfaceShadow)
           ctx.restore()
         }
+        // target: frameWindow's own dockChromeMetrics property, not
+        // dockChrome's own derived leftWidth/rightX/rightWidth ints --
+        // direct live report of a real bug this masked: as more pinned
+        // widgets/launcher icons grew the bar's own content, "the dock
+        // size isnt like moving or getting larger anymore, its like
+        // static bar", overflowing content onto bare wallpaper past the
+        // chrome's own edge. Root cause, found with a live debug trace:
+        // the per-property Connections below (onLeftWidthChanged etc.)
+        // only ever fired ONCE, for the initial visible:false->true
+        // transition -- every metrics update afterward (confirmed via
+        // the same trace to be reaching frameWindow.dockChromeMetrics
+        // correctly, settling on the real, grown width) never triggered
+        // a single further repaint. dockChromeMetricsChanged is the one
+        // signal already proven reliable (by the same trace) across
+        // every single update, not just the first -- binding repaint
+        // directly to it removes whatever reactivity gap existed in the
+        // extra layer of derived int properties in between.
         Connections {
-          target: dockChrome
-          function onLeftWidthChanged() { dockChromeShadowCanvas.requestPaint() }
-          function onRightXChanged() { dockChromeShadowCanvas.requestPaint() }
-          function onRightWidthChanged() { dockChromeShadowCanvas.requestPaint() }
-          function onWidthChanged() { dockChromeShadowCanvas.requestPaint() }
-          function onVisibleChanged() { dockChromeShadowCanvas.requestPaint() }
+          target: frameWindow
+          function onDockChromeMetricsChanged() { dockChromeShadowCanvas.requestPaint() }
         }
         Connections {
           target: root
@@ -2176,13 +2189,11 @@ Item {
           ctx.clearRect(0, 0, width, height)
           dockChrome.dockPath(ctx, root.frameColor, root.frameColor)
         }
+        // Mirrors dockChromeShadowCanvas's own Connections -- see its
+        // comment for the real bug this fixes.
         Connections {
-          target: dockChrome
-          function onLeftWidthChanged() { dockChromeFillCanvas.requestPaint() }
-          function onRightXChanged() { dockChromeFillCanvas.requestPaint() }
-          function onRightWidthChanged() { dockChromeFillCanvas.requestPaint() }
-          function onWidthChanged() { dockChromeFillCanvas.requestPaint() }
-          function onVisibleChanged() { dockChromeFillCanvas.requestPaint() }
+          target: frameWindow
+          function onDockChromeMetricsChanged() { dockChromeFillCanvas.requestPaint() }
         }
         Connections {
           target: root
