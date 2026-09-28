@@ -56,10 +56,24 @@ check "old BarPanel seam-cover strips are disabled while frame owns dock chrome"
   "$(grep -c 'visible: root.docked && root.position === "top" && !root.frameOwnsDockChrome' "$bar_qml")" "3"
 
 check "horizontal dock layout publishes measured left and right extents" \
-  "$(( $(grep -A16 'id: horizontalBarRoot' "$bar_qml" | grep -c 'leftWidth: settingsPill.x + settingsPill.width') + $(grep -A16 'id: horizontalBarRoot' "$bar_qml" | grep -c 'rightX: rightDockedBg.x') + $(grep -A16 'id: horizontalBarRoot' "$bar_qml" | grep -c 'rightWidth: horizontalBarRoot.width - rightDockedBg.x') ))" "3"
+  "$(( $(grep -A30 'id: horizontalBarRoot' "$bar_qml" | grep -c 'leftWidth: settingsPill.x + settingsPill.width') + $(grep -A30 'id: horizontalBarRoot' "$bar_qml" | grep -c 'rightX: rightDockedBg.x') + $(grep -A30 'id: horizontalBarRoot' "$bar_qml" | grep -c 'rightWidth: horizontalBarRoot.width - rightDockedBg.x') ))" "3"
 
+# The docked/top guard lives in publishDockChromeMetricsNow() (the
+# actual publish), not publishDockChromeMetrics() itself -- that
+# wrapper now also restarts a settle-recheck Timer (see its own
+# comment: a live-reload race where a late-settling widget's width
+# change could land after the last onXChanged/onWidthChanged fired,
+# permanently freezing the chrome one step short of the real width).
 check "dock metric publishing is scoped to top docked mode only for this first refactor slice" \
-  "$(grep -A5 'function publishDockChromeMetrics()' "$bar_qml" | grep -c 'if (!root.docked || root.position !== "top") return')" "1"
+  "$(grep -A5 'function publishDockChromeMetricsNow()' "$bar_qml" | grep -c 'if (!root.docked || root.position !== "top") return')" "1"
+
+# The settle timer's own lifecycle safety -- direct live report after a
+# rapid-fire live-reload stress test crashed the whole bar: a Timer
+# left ticking past its own parent's destruction threw repeated
+# "attempted to evaluate a function in an invalid context" errors.
+# Component.onDestruction must stop it before that window opens.
+check "the dock chrome settle timer is explicitly stopped before its own Item is destroyed" \
+  "$(grep -c 'Component.onDestruction: settleTimer.stop()' "$bar_qml")" "1"
 
 check "dock metric updates are triggered by both left and right dock geometry changes" \
   "$(( $(grep -A5 'id: leftDockedBg' "$bar_qml" | grep -c 'onWidthChanged: horizontalBarRoot.publishDockChromeMetrics') + $(grep -A8 'id: rightDockedBg' "$bar_qml" | grep -c 'horizontalBarRoot.publishDockChromeMetrics') + $(grep -A20 'id: trayPill' "$bar_qml" | grep -c 'horizontalBarRoot.publishDockChromeMetrics') ))" "5"

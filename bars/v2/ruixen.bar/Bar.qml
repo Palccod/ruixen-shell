@@ -2495,16 +2495,60 @@ Item {
         onWidthChanged: publishDockChromeMetrics()
         onHeightChanged: publishDockChromeMetrics()
         Component.onCompleted: Qt.callLater(publishDockChromeMetrics)
+        // settleTimer is parented to this Item and torn down along with
+        // it normally, but a live shell.json reload (pinning/unpinning a
+        // widget, not a restart) destroys and rebuilds this whole Item,
+        // and a Timer mid-flight at that exact moment can still fire its
+        // onTriggered a beat into the teardown, calling back into an
+        // object whose QML context is already gone -- confirmed live
+        // (rapid-fire repeated edits): "QQmlVMEMetaObject: Internal
+        // error - attempted to evaluate a function in an invalid
+        // context", over and over, taking the whole bar down. Explicitly
+        // stopping it here closes that window -- Component.onDestruction
+        // runs before teardown actually happens, so this always wins the
+        // race against the timer's own onTriggered.
+        Component.onDestruction: settleTimer.stop()
 
-        function publishDockChromeMetrics() {
-          if (!root.docked || root.position !== "top") return
-          root.publishDockChromeMetrics(root.screenNameForWindow(barWindow), {
+        function currentDockChromeMetrics() {
+          return {
             screenWidth: horizontalBarRoot.width,
             barHeight: root.barSize,
             leftWidth: settingsPill.x + settingsPill.width,
             rightX: rightDockedBg.x,
             rightWidth: horizontalBarRoot.width - rightDockedBg.x
-          })
+          }
+        }
+
+        function publishDockChromeMetricsNow() {
+          if (!root.docked || root.position !== "top") return
+          root.publishDockChromeMetrics(root.screenNameForWindow(barWindow), horizontalBarRoot.currentDockChromeMetrics())
+        }
+
+        // Safety net for a real live-reload race, root-caused with a
+        // debug trace: settingsPill/rightDockedBg's own onXChanged/
+        // onWidthChanged handlers (below) DO fire and DO call this
+        // function correctly on every layout change -- but if a newly-
+        // added widget's own icon/content finishes loading and resizing
+        // slightly AFTER the last of those signals fires (an async
+        // image/glyph load, or the next Repeater delta landing a beat
+        // later), nothing re-measures after that: the chrome silently
+        // freezes one step short of the real final width, exactly
+        // matching the direct live report ("as i add more stuff to the
+        // pin plugin... the dock size isnt like moving or getting larger
+        // anymore"). Re-checking once, a beat after the last width-
+        // changing signal, catches that gap without needing to chase
+        // down every possible async widget content source individually.
+        // settleTimer.restart() (not start()) makes this a debounce -- a
+        // burst of changes during layout settling collapses to exactly
+        // one recheck, not one per signal.
+        property Timer settleTimer: Timer {
+          interval: 250
+          onTriggered: horizontalBarRoot.publishDockChromeMetricsNow()
+        }
+
+        function publishDockChromeMetrics() {
+          horizontalBarRoot.publishDockChromeMetricsNow()
+          horizontalBarRoot.settleTimer.restart()
         }
 
         // Docked mode: the left group (menuPill/workspacesPill/
