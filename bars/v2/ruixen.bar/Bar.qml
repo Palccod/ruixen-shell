@@ -2284,7 +2284,9 @@ Item {
     // `anchorWindow.height + gap` (KeyboardPanel.qml's own cardOrigin, not
     // editable -- it's a stock /usr/share/omarchy file), which had no
     // notion of ruixen.notch and let a popup open right underneath it.
-    readonly property int visibleBarHeight: root.vertical ? root.barSize : Math.max(root.barSize + root.shoulderWingSize, root.notchCollapsedBottomEdge)
+    readonly property int floatingVisibleBarHeight: Math.max(root.barSize, root.notchCollapsedBottomEdge)
+    readonly property int dockedVisibleBarHeight: Math.max(root.barSize + root.shoulderWingSize, root.notchCollapsedBottomEdge)
+    readonly property int visibleBarHeight: root.vertical ? root.barSize : (root.docked ? dockedVisibleBarHeight : floatingVisibleBarHeight)
     // + seamOverlap -- this window's own top edge moved up by seamOverlap
     // (margins.top above), so its own height needs to grow by the same
     // amount to keep the BOTTOM edge (and thus anchorWindow.height/

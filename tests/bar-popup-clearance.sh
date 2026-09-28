@@ -160,14 +160,20 @@ check "Overlay.qml's centerMask overlaps both flanks to avoid hairline seams" \
 check "Overlay.qml's shadow center uses the same seam overlap as the mask" \
   "$(( $(grep -cF 'anchors.leftMargin: notchOuter.cornerSize - notchOuter.seamOverlap' "$notch_overlay_qml" || true) + $(grep -cF 'anchors.rightMargin: notchOuter.cornerSize - notchOuter.seamOverlap' "$notch_overlay_qml" || true) ))" "2"
 
-# Same floor in BOTH modes now (see this file's own header for why the
-# per-mode split was unified) -- docked's own wing-clip constraint sets
-# the shared value, since it's the one that can't come down.
+# Docked and floating need different input heights. Docked owns the
+# frame-hem/shoulder wing band below the row, so its Wayland surface must
+# include that extra height. Floating only paints the pill row; keeping the
+# docked wing band in floating creates a transparent input strip above the
+# visible bar (issue #80: taps in that strip do nothing).
+floating_visible_height_line="$(grep -m1 'readonly property int floatingVisibleBarHeight:' "$bar_qml")"
+docked_visible_height_line="$(grep -m1 'readonly property int dockedVisibleBarHeight:' "$bar_qml")"
 visible_bar_height_line="$(grep -m1 'readonly property int visibleBarHeight:' "$bar_qml")"
-check "visibleBarHeight no longer branches on root.docked (both modes share one floor)" \
-  "$(printf '%s' "$visible_bar_height_line" | grep -c 'root\.docked ?' || true)" "0"
-check "visibleBarHeight still floors at barSize + shoulderWingSize (the wing-graphic minimum, now shared)" \
-  "$(printf '%s' "$visible_bar_height_line" | grep -c 'Math\.max(root\.barSize + root\.shoulderWingSize, root\.notchCollapsedBottomEdge)' || true)" "1"
+check "floating visibleBarHeight clears the notch without including dock-only shoulder wings" \
+  "$floating_visible_height_line" "    readonly property int floatingVisibleBarHeight: Math.max(root.barSize, root.notchCollapsedBottomEdge)"
+check "docked visibleBarHeight still includes shoulderWingSize for dock chrome" \
+  "$docked_visible_height_line" "    readonly property int dockedVisibleBarHeight: Math.max(root.barSize + root.shoulderWingSize, root.notchCollapsedBottomEdge)"
+check "visibleBarHeight branches by docked mode so floating does not get a dead input strip" \
+  "$visible_bar_height_line" "    readonly property int visibleBarHeight: root.vertical ? root.barSize : (root.docked ? dockedVisibleBarHeight : floatingVisibleBarHeight)"
 
 # implicitHeight must stay EITHER exactly visibleBarHeight OR
 # visibleBarHeight + root.seamOverlap -- not some other, larger reach
