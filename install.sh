@@ -209,7 +209,7 @@ if [[ "$dry_run" == true ]]; then
       "$looknfeel_data_dir_preview"/*) looknfeel_preview_variant="$(basename "$looknfeel_preview_link")" ;;
     esac
   fi
-  looknfeel_src="$script_dir/hyprland/${looknfeel_preview_variant:-looknfeel.ruixen.lua}"
+  looknfeel_src="$script_dir/hyprland/${looknfeel_preview_variant:-looknfeel.half.lua}"
   if [[ -L "$looknfeel_target" ]]; then
     link_target="$(readlink -f "$looknfeel_target" 2>/dev/null || true)"
     if [[ -n "$link_target" ]] && cmp -s "$link_target" "$looknfeel_src" 2>/dev/null; then
@@ -896,7 +896,7 @@ if [[ -L "$looknfeel_target" ]]; then
     "$looknfeel_data_dir"/*) looknfeel_current_variant="$(basename "$looknfeel_existing_link")" ;;
   esac
 fi
-looknfeel_src="$looknfeel_data_dir/${looknfeel_current_variant:-looknfeel.ruixen.lua}"
+looknfeel_src="$looknfeel_data_dir/${looknfeel_current_variant:-looknfeel.half.lua}"
 looknfeel_pristine_dir="$state_dir/looknfeel-pristine"
 LOOKNFEEL_TOUCHED=1
 "$script_dir/lib/apply-looknfeel.sh" "$looknfeel_target" "$looknfeel_src" "$looknfeel_pristine_dir" "$stamp"
@@ -905,7 +905,8 @@ if [[ -e "${looknfeel_target}.bak.${stamp}" ]]; then
   printf '  backed up existing looknfeel.lua -> looknfeel.lua.bak.%s\n' "$stamp"
 fi
 hyprctl reload >/dev/null 2>&1 || true
-case "$looknfeel_current_variant" in
+looknfeel_effective_variant="$(basename "$looknfeel_src")"
+case "$looknfeel_effective_variant" in
   looknfeel.default.lua)
     printf '  kept your existing choice: stock Omarchy look (square corners, no blur)\n'
     ;;
@@ -913,7 +914,11 @@ case "$looknfeel_current_variant" in
     printf '  kept your existing choice: square corners, with the thin border/blur/shadow\n'
     ;;
   looknfeel.half.lua)
-    printf '  kept your existing choice: rounded corners at half the radius (12px)\n'
+    if [[ -n "$looknfeel_current_variant" ]]; then
+      printf '  kept your existing choice: rounded corners at half the radius (12px)\n'
+    else
+      printf '  applied rounded corners at half the radius (12px) + blur matching the frame\n'
+    fi
     ;;
   *)
     printf '  applied rounded corners + blur matching the frame (24px)\n'

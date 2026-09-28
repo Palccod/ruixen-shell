@@ -99,7 +99,7 @@ check "SettingsContent.qml: half symlinks looknfeel.half.lua" \
   "$(grep -m1 'curvature === "half" ? "looknfeel.half.lua"' "$launcher_settings_qml")" \
   '              : curvature === "half" ? "looknfeel.half.lua"'
 
-check "SettingsContent.qml: keyboard-nav options include half" \
+check "SettingsContent.qml: keyboard-nav options include half in the middle" \
   "$(grep -m1 'options: \["rounded", "half", "sharp"\]' "$launcher_settings_qml")" \
   '      options: ["rounded", "half", "sharp"],'
 

@@ -91,12 +91,12 @@ Item {
   // glassTint below resolves to, so glassBackground/every other
   // consumer of glassTint (the source-filter dropdown, ResultActionsMenu)
   // picks up whichever is chosen automatically, no separate wiring.
-  property string glassTintMode: "themed"
+  property string glassTintMode: "black"
   readonly property string glassTintModeStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/glass-tint-mode"
 
   function loadGlassTintMode(raw) {
     var v = String(raw || "").trim()
-    root.glassTintMode = (v === "black") ? v : "themed"
+    root.glassTintMode = (v === "themed") ? v : "black"
   }
 
   FileView {

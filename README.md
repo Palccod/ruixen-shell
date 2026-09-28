@@ -35,7 +35,8 @@ visual layer that runs as plugins inside the Omarchy shell you already use.
 
 - **`ruixen.bar`** — the top bar itself: app launcher, GNOME-style dot
   workspace indicator, pinned quick-launch apps, weather, clock, and a
-  settings shortcut, all in one connected pill layout.
+  settings shortcut, all in one connected pill layout. Fresh installs use
+  floating glass pills with accent-toned icons.
 - **`ruixen.notch`** — a center-notch dashboard with metrics, wallpapers,
   storage, music control, a notification history card (attaches to
   Omarchy's own notification service, adding read/unread tracking and a
@@ -318,8 +319,9 @@ how the click model works: [`docs/CONTROL.md`](docs/CONTROL.md).
 
 ## Window look'n'feel (Hyprland)
 
-Ruixen also rounds window corners (24px) and adds blur, to match the
-frame/bar. Toggle it independently of the plugins above:
+Ruixen also rounds window corners and adds blur, to match the frame/bar.
+Fresh installs default to the half-radius look (12px). Toggle it
+independently of the plugins above:
 
 ```bash
 hyprland/ruixen-lookfeel.sh on      # rounded corners + blur, matches the frame
@@ -329,16 +331,16 @@ hyprland/ruixen-lookfeel.sh square  # square corners, but keeps the thin border/
 hyprland/ruixen-lookfeel.sh status  # show which one is active
 ```
 
-`half` is the middle step between `on` and `square` — the same rounded look
-at half the corner radius, for when 24px reads too soft and sharp reads too
-stark. `square` is for anyone who wants stock Omarchy's own square corners without
-giving up the rest of Ruixen's look. The screen frame's own corner rounding
-follows whichever of the four is active automatically when the bar is
+`half` is the default middle step between `on` and `square` — the same rounded
+look at half the corner radius, for when 24px reads too soft and sharp reads
+too stark. `square` is for anyone who wants stock Omarchy's own square corners
+without giving up the rest of Ruixen's look. The screen frame's own corner
+rounding follows whichever of the four is active automatically when the bar is
 floating. When the bar is docked, the frame's corner always stays rounded
-regardless of which variant is active -- docked mode's own wider gaps
-already keep real window corners well clear of that curve, so nothing
-clips, and it keeps the docked bar's own corner (always rounded) visually
-consistent with the frame right next to it.
+regardless of which variant is active -- docked mode's own wider gaps already
+keep real window corners well clear of that curve, so nothing clips, and it
+keeps the docked bar's own corner (always rounded) visually consistent with the
+frame right next to it.
 
 ## Requirements
 

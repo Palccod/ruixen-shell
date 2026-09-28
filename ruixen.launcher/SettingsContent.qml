@@ -376,7 +376,7 @@ Item {
   // always has (ruixen.frame-widget's own corner mask only reads which
   // variant is active at its own startup, so a plain `hyprctl reload`
   // alone could never pick up a live switch). Expected, not a bug.
-  property string cornerCurvature: "rounded"
+  property string cornerCurvature: "half"
   readonly property string looknfeelTarget: Quickshell.env("HOME") + "/.config/hypr/looknfeel.lua"
   readonly property string looknfeelDataDir: Quickshell.env("HOME") + "/.local/share/ruixen-shell/hyprland"
 
@@ -391,8 +391,10 @@ Item {
           root.cornerCurvature = "sharp"
         else if (link.indexOf("looknfeel.half.lua") >= 0)
           root.cornerCurvature = "half"
-        else
+        else if (link.indexOf("looknfeel.ruixen.lua") >= 0)
           root.cornerCurvature = "rounded"
+        else
+          root.cornerCurvature = "half"
       }
     }
   }
@@ -507,9 +509,8 @@ Item {
   // hyprland/looknfeel.ruixen.lua and looknfeel.square.lua (both read
   // this same file, same as Window Spacing above), this side's only
   // job is writing the chosen profile. Frosted (today's existing
-  // values) stays the default; Transparent is a real, working
-  // configuration confirmed to read noticeably clearer (inactive_opacity
-  // 0.75, blur passes 2), not guessed.
+  // Transparent is the default; Frosted keeps the stronger blur/opacity
+  // values for people who prefer the original heavier glass.
   //
   // A Vibrant (blur.vibrancy boost) and Solid (blur off) pair were
   // also tried and reverted -- direct report: "solid still broken and
@@ -517,7 +518,7 @@ Item {
   // frosted, so i guess we dont need them." See looknfeel.ruixen.lua's
   // own comment on its readGlassProfile() for the full root-cause
   // writeup, for anyone tempted to retry either.
-  property string glassProfile: "frosted"
+  property string glassProfile: "transparent"
   readonly property string glassProfilePath: Quickshell.env("HOME") + "/.local/state/ruixen/glass-profile"
 
   Process {
@@ -527,7 +528,7 @@ Item {
       waitForEnd: true
       onStreamFinished: {
         var v = String(text || "").trim()
-        root.glassProfile = (v === "transparent") ? v : "frosted"
+        root.glassProfile = (v === "frosted") ? v : "transparent"
       }
     }
   }
@@ -554,7 +555,7 @@ Item {
   // opacity STRENGTH) -- so no `hyprctl reload` here, just a plain
   // state file Launcher.qml's own FileView watches directly (see its
   // glassTintMode there for the actual color resolution).
-  property string glassTintMode: "themed"
+  property string glassTintMode: "black"
   readonly property string glassTintModePath: Quickshell.env("HOME") + "/.local/state/ruixen/glass-tint-mode"
 
   Process {
@@ -564,7 +565,7 @@ Item {
       waitForEnd: true
       onStreamFinished: {
         var v = String(text || "").trim()
-        root.glassTintMode = (v === "black") ? v : "themed"
+        root.glassTintMode = (v === "themed") ? v : "black"
       }
     }
   }
@@ -1667,8 +1668,8 @@ Item {
   // without a much bigger light-background rework, rather than trying
   // to patch around just the one reported swatch.
   property string frameColorMode: "black"
-  property string barSurfaceMaterial: "solid"
-  property string barIconTone: "mono"
+  property string barSurfaceMaterial: "glass"
+  property string barIconTone: "accent"
   property bool barSurfaceStateLoaded: false
   readonly property string barSurfaceStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-surface.json"
   readonly property string barIconToneStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-icon-tone.json"
@@ -1707,7 +1708,7 @@ Item {
       var p = JSON.parse(String(raw || "").trim() || "{}")
       root.barIconTone = root.normalizeIconTone(p && p.tone)
     } catch (e) {
-      root.barIconTone = "mono"
+      root.barIconTone = "accent"
     }
   }
 
@@ -1786,7 +1787,7 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.loadBarIconToneState(text())
-    onLoadFailed: root.barIconTone = "mono"
+    onLoadFailed: root.barIconTone = "accent"
   }
 
   // App Launcher's own "Launcher Mark" picker, below on the Bar page --
@@ -2063,12 +2064,12 @@ Item {
       }
     },
     {
-      options: ["frosted", "transparent"],
+      options: ["transparent", "frosted"],
       current: root.glassProfile,
       activate: function(id) { root.setGlassProfile(id) }
     },
     {
-      options: ["themed", "black"],
+      options: ["black", "themed"],
       current: root.glassTintMode,
       activate: function(id) { root.setGlassTintMode(id) }
     },
@@ -2089,30 +2090,25 @@ Item {
     }
   ]
   readonly property var barItems: [
-    // Moved here from the Desktop page, above Bar Layout -- direct
-    // request: "move the frame color from the setting out of desktop
-    // and lets put it in Bars above bar layout." It shapes the bar's
-    // own frame/docked-shoulder surface (see AGENTS.md #9), not
-    // anything Desktop-page-specific like the cava visualizer.
-    {
-      options: ["theme", "black"],
-      current: root.frameColorMode,
-      activate: function(id) { root.setFrameColorMode(id) }
-    },
-    {
-      options: ["solid", "glass"],
-      current: root.barSurfaceMaterial,
-      activate: function(id) { root.setBarSurfaceMaterial(id) }
-    },
-    {
-      options: ["mono", "accent"],
-      current: root.barIconTone,
-      activate: function(id) { root.setBarIconTone(id) }
-    },
     {
       options: ["floating", "docked"],
       current: root.barMode,
       activate: function(id) { root.setBarMode(id) }
+    },
+    {
+      options: ["black", "theme"],
+      current: root.frameColorMode,
+      activate: function(id) { root.setFrameColorMode(id) }
+    },
+    {
+      options: ["glass", "solid"],
+      current: root.barSurfaceMaterial,
+      activate: function(id) { root.setBarSurfaceMaterial(id) }
+    },
+    {
+      options: ["accent", "mono"],
+      current: root.barIconTone,
+      activate: function(id) { root.setBarIconTone(id) }
     },
     {
       options: ["show", "hover", "hidden"],
@@ -2602,7 +2598,7 @@ Item {
       // scroll to, the same as every other (much smaller) item here
       // already gets for free.
       if (root.focusedItemIndex === 5) return iconRepeater.itemAt(root.focusedOptionIndex)
-      return [frameColorModeItem, surfaceMaterialItem, iconToneItem, barLayoutItem, notchVisibilityItem, appLauncherIconItem][root.focusedItemIndex]
+      return [barLayoutItem, frameColorModeItem, surfaceMaterialItem, iconToneItem, notchVisibilityItem, appLauncherIconItem][root.focusedItemIndex]
     }
     if (root.launcherOpen) {
       if (root.focusedItemIndex === 0) return includeHomeRow
@@ -3267,8 +3263,8 @@ Item {
     id: glassProfileItem
     label: "Glass Effect"
     options: [
-      { id: "frosted", label: "Frosted" },
-      { id: "transparent", label: "Transparent" }
+      { id: "transparent", label: "Transparent" },
+      { id: "frosted", label: "Frosted" }
     ]
     current: root.glassProfile
     cardFocused: root.rightFocused && root.focusedItemIndex === 1
@@ -3281,7 +3277,7 @@ Item {
     onActivated: (id) => root.setGlassProfile(id)
   }
 
-  // Glass Tint (Themed/Black) -- direct request, right after Glass
+  // Glass Tint (Dark/Theme) -- direct request, right after Glass
   // Effect since they're both "glass"-related, even though they're
   // orthogonal settings (see glassTintMode's own comment above for the
   // full "why," including the git-history confirmation that Black is
@@ -3290,8 +3286,8 @@ Item {
     id: glassTintItem
     label: "Glass Tint"
     options: [
-      { id: "themed", label: "Themed" },
-      { id: "black", label: "Dark" }
+      { id: "black", label: "Dark" },
+      { id: "themed", label: "Theme" }
     ]
     current: root.glassTintMode
     cardFocused: root.rightFocused && root.focusedItemIndex === 2
@@ -3369,6 +3365,29 @@ Item {
     onActivated: (id) => root.setAnimationProfile(id)
   }
 
+  // Bar's own single item -- direct request: "think we're ready for
+  // the bar page next, it should just be one setting option there for
+  // bar layout floating or dock." It stays first because switching it
+  // changes the shell chrome shape and reload behavior more than the
+  // purely visual surface options below.
+  SettingsSegmentedItem {
+    id: barLayoutItem
+    label: "Bar Layout"
+    options: [
+      { id: "floating", label: "Floating" },
+      { id: "docked", label: "Docked" }
+    ]
+    current: root.barMode
+    cardFocused: root.rightFocused && root.focusedItemIndex === 0
+    focusedOptionIndex: cardFocused ? root.focusedOptionIndex : -1
+    visible: root.barOpen
+    textColor: root.textColor
+    muted: root.muted
+    accent: root.accent
+    fontFamily: root.fontFamily
+    onActivated: (id) => root.setBarMode(id)
+  }
+
   // Surface color -- theme it (tracks the active theme's own background
   // live) or plain black. Same "Themed"/mode-name wording ruixen.settings'
   // own Glass Tint card already established elsewhere in this file, for
@@ -3379,20 +3398,18 @@ Item {
   // the notch unusable... remove white from the setting as an option
   // then and just leave Black and Theme." Down to one card, one choice.
   //
-  // Moved here from the Desktop page, above Bar Layout -- direct
-  // request: "move the frame color from the setting out of desktop and
-  // lets put it in Bars above bar layout." It now shapes the bar's own
+  // Moved here from the Desktop page. It now shapes the bar's own
   // floating pills plus frame/docked-shoulder surface (see AGENTS.md #9's
   // "coupled visual surfaces"), not anything Desktop-page-specific.
   SettingsSegmentedItem {
     id: frameColorModeItem
     label: "Surface Color"
     options: [
-      { id: "theme", label: "Themed" },
-      { id: "black", label: "Black" }
+      { id: "black", label: "Black" },
+      { id: "theme", label: "Theme" }
     ]
     current: root.frameColorMode
-    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 0
+    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 1
     focusedOptionIndex: frameColorModeItem.cardFocused ? root.focusedOptionIndex : -1
     visible: root.barOpen
     textColor: root.textColor
@@ -3406,11 +3423,11 @@ Item {
     id: surfaceMaterialItem
     label: "Surface Material"
     options: [
-      { id: "solid", label: "Solid" },
-      { id: "glass", label: "Glass" }
+      { id: "glass", label: "Glass" },
+      { id: "solid", label: "Solid" }
     ]
     current: root.barSurfaceMaterial
-    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 1
+    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 2
     focusedOptionIndex: surfaceMaterialItem.cardFocused ? root.focusedOptionIndex : -1
     visible: root.barOpen
     textColor: root.textColor
@@ -3424,11 +3441,11 @@ Item {
     id: iconToneItem
     label: "Icon Tone"
     options: [
-      { id: "mono", label: "Mono" },
-      { id: "accent", label: "Accent" }
+      { id: "accent", label: "Accent" },
+      { id: "mono", label: "Mono" }
     ]
     current: root.barIconTone
-    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 2
+    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 3
     focusedOptionIndex: iconToneItem.cardFocused ? root.focusedOptionIndex : -1
     visible: root.barOpen
     textColor: root.textColor
@@ -3436,32 +3453,6 @@ Item {
     accent: root.accent
     fontFamily: root.fontFamily
     onActivated: (id) => root.setBarIconTone(id)
-  }
-
-  // Bar's own single item -- direct request: "think we're ready for
-  // the bar page next, it should just be one setting option there for
-  // bar layout floating or dock." A plain Column child like the three
-  // above, not anchored -- Column already skips every invisible
-  // sibling's space, so with Profile's own four items all hidden while
-  // Bar is open, this naturally lands at the top of the column, same
-  // as every other category's own first item.
-  SettingsSegmentedItem {
-    id: barLayoutItem
-    label: "Bar Layout"
-    options: [
-      { id: "floating", label: "Floating" },
-      { id: "docked", label: "Docked" }
-    ]
-    current: root.barMode
-    // 3, not 0 -- Surface Color/Material/Icon Tone sit above it.
-    cardFocused: root.rightFocused && root.focusedItemIndex === 3
-    focusedOptionIndex: cardFocused ? root.focusedOptionIndex : -1
-    visible: root.barOpen
-    textColor: root.textColor
-    muted: root.muted
-    accent: root.accent
-    fontFamily: root.fontFamily
-    onActivated: (id) => root.setBarMode(id)
   }
 
   // Direct request: "instead of having people run the disable cli
@@ -3506,7 +3497,7 @@ Item {
       { id: "hidden", label: "Hidden" }
     ]
     current: root.notchVisibilityCurrentId()
-    // 4, not 1 -- Surface Color/Material/Icon Tone sit above it.
+    // 4 -- Bar Layout plus Surface Color/Material/Icon Tone sit above it.
     cardFocused: root.rightFocused && root.focusedItemIndex === 4
     focusedOptionIndex: cardFocused ? root.focusedOptionIndex : -1
     visible: root.barOpen
@@ -3543,8 +3534,8 @@ Item {
     color: Qt.rgba(0, 0, 0, 0.18)
     // Card-level focus ring -- same convention profilePictureItem's
     // own comment documents ("tab between cards... then left or right
-    // direction and enter for that option"). 5, not 2 -- Surface
-    // Color/Material/Icon Tone sit above it on this page.
+    // direction and enter for that option"). 5 -- Bar Layout plus
+    // Surface Color/Material/Icon Tone sit above it on this page.
     border.width: root.rightFocused && root.focusedItemIndex === 5 ? 1 : 0
     border.color: root.accent
     visible: root.barOpen
@@ -3588,8 +3579,8 @@ Item {
             // the identical reason (an all-white border here would
             // clobber the accent ring's own "this is applied"
             // meaning).
-            // 5, not 2 -- Surface Color/Material/Icon Tone sit above it
-            // on this page.
+            // 5 -- Bar Layout plus Surface Color/Material/Icon Tone sit
+            // above it on this page.
             readonly property bool isFocused: root.rightFocused
               && root.focusedItemIndex === 5 && root.focusedOptionIndex === iconBtn.index
 

@@ -22,8 +22,8 @@ check() {
   fi
 }
 
-check "Bar.qml exposes an iconTone state with mono default" \
-  "$(grep -c 'property string iconTone: "mono"' "$bar_qml")" "1"
+check "Bar.qml exposes an iconTone state with accent default" \
+  "$(grep -c 'property string iconTone: "accent"' "$bar_qml")" "1"
 
 check "Bar.qml resolves Accent icons through Color.accent only at iconForeground" \
   "$(grep -c 'readonly property color iconForeground: iconTone === "accent" ? Color.accent : pillForeground' "$bar_qml")" "1"
@@ -52,11 +52,17 @@ check "PluginBarFacade exposes popup foreground through bar.foreground" \
 check "Bar.qml reads the independent icon tone state file" \
   "$(grep -c 'bar-icon-tone.json' "$bar_qml")" "1"
 
+check "SettingsContent.qml defaults Icon Tone to accent when no user state exists" \
+  "$(grep -c 'property string barIconTone: "accent"' "$settings_qml")" "1"
+
 check "SettingsContent.qml exposes Icon Tone on the Bar page" \
   "$(grep -c 'label: "Icon Tone"' "$settings_qml")" "1"
 
-check "SettingsContent.qml offers exactly Mono and Accent" \
-  "$(( $(grep -c '{ id: "mono", label: "Mono" }' "$settings_qml") + $(grep -c '{ id: "accent", label: "Accent" }' "$settings_qml") ))" "2"
+check "SettingsContent.qml orders Icon Tone with default Accent first" \
+  "$(grep -A6 'id: iconToneItem' "$settings_qml" | grep -c '{ id: "accent", label: "Accent" }')" "1"
+
+check "SettingsContent.qml offers exactly Accent and Mono" \
+  "$(( $(grep -c '{ id: "accent", label: "Accent" }' "$settings_qml") + $(grep -c '{ id: "mono", label: "Mono" }' "$settings_qml") ))" "2"
 
 check "SettingsContent.qml writes the same icon tone state file" \
   "$(grep -c 'bar-icon-tone.json' "$settings_qml")" "1"
