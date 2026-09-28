@@ -43,6 +43,7 @@ suites=(
   "$script_dir/bar-popup-clearance.sh"
   "$script_dir/bar-right-side-groups.sh"
   "$script_dir/bar-docked-left-inset.sh"
+  "$script_dir/chrome-surface-refactor.sh"
   "$script_dir/avatar-custom-gif.sh"
   "$script_dir/plugin-enable-placement.sh"
   "$script_dir/pluginpins-model.sh"

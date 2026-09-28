@@ -93,6 +93,11 @@ Item {
   readonly property color floatingPillFill: surfaceFillForMaterial(floatingPillSurface, floatingSurfaceMaterial)
   readonly property real floatingPillSurfaceLuminance: surfaceLuminance(floatingPillSurface)
   readonly property real themeForegroundLuminance: surfaceLuminance(themeForeground)
+  // Dock chrome refactor bridge: BarPanel owns widget layout, FrameWindow
+  // should eventually own the visual chrome. Publish measured geometry per
+  // screen first so the frame can consume it without guessing pill widths.
+  property var dockChromeMetricsByScreen: ({})
+  property int dockChromeMetricsSerial: 0
 
   function surfaceLuminance(c) {
     return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
@@ -117,6 +122,39 @@ Item {
 
   function contentSurfaceFor(surface) {
     return root.surfaceLuminance(surface) > 0.5 ? root.surfaceBlack : surface
+  }
+
+  function screenNameForWindow(window) {
+    return window && window.screen ? String(window.screen.name || "") : ""
+  }
+
+  function publishDockChromeMetrics(screenName, metrics) {
+    var key = String(screenName || "")
+    if (!key || !metrics) return
+
+    var next = {}
+    for (var existing in root.dockChromeMetricsByScreen)
+      next[existing] = root.dockChromeMetricsByScreen[existing]
+    next[key] = {
+      screenWidth: Math.max(0, Math.round(metrics.screenWidth || 0)),
+      barHeight: Math.max(0, Math.round(metrics.barHeight || 0)),
+      leftWidth: Math.max(0, Math.round(metrics.leftWidth || 0)),
+      rightX: Math.max(0, Math.round(metrics.rightX || 0)),
+      rightWidth: Math.max(0, Math.round(metrics.rightWidth || 0))
+    }
+    root.dockChromeMetricsByScreen = next
+    root.dockChromeMetricsSerial += 1
+  }
+
+  function dockChromeMetrics(screenName) {
+    var key = String(screenName || "")
+    return root.dockChromeMetricsByScreen[key] || {
+      screenWidth: 0,
+      barHeight: root.barSize,
+      leftWidth: 0,
+      rightX: 0,
+      rightWidth: 0
+    }
   }
 
   // themeForeground itself is left theme-following since it also feeds
@@ -1770,6 +1808,9 @@ Item {
   // though these are two separate surfaces again.
   component FrameWindow: PanelWindow {
     id: frameWindow
+    readonly property string dockChromeScreenName: root.screenNameForWindow(frameWindow)
+    readonly property int dockChromeSerial: root.dockChromeMetricsSerial
+    readonly property var dockChromeMetrics: root.dockChromeMetrics(dockChromeScreenName)
 
     visible: true
     exclusionMode: ExclusionMode.Ignore
@@ -2282,7 +2323,22 @@ Item {
       id: horizontalBar
 
       Item {
+        id: horizontalBarRoot
         anchors.fill: parent
+        onWidthChanged: publishDockChromeMetrics()
+        onHeightChanged: publishDockChromeMetrics()
+        Component.onCompleted: Qt.callLater(publishDockChromeMetrics)
+
+        function publishDockChromeMetrics() {
+          if (!root.docked || root.position !== "top") return
+          root.publishDockChromeMetrics(root.screenNameForWindow(barWindow), {
+            screenWidth: horizontalBarRoot.width,
+            barHeight: root.barSize,
+            leftWidth: settingsPill.x + settingsPill.width,
+            rightX: rightDockedBg.x,
+            rightWidth: horizontalBarRoot.width - rightDockedBg.x
+          })
+        }
 
         // Docked mode: the left group (menuPill/workspacesPill/
         // settingsPill) and right group (trayPill/pluginPinsPill/
@@ -2554,6 +2610,7 @@ Item {
           visible: root.docked
           x: 0
           y: 0
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           // Normal notch skin: just the left group's own width. Fullbar skin:
           // stretch across the whole surface for the saved statusline strip.
           width: root.fullbarStyle ? parent.width : (settingsPill.x + settingsPill.width)
@@ -2641,6 +2698,8 @@ Item {
           visible: root.docked && !root.fullbarStyle
           x: trayPill.x
           y: 0
+          onXChanged: horizontalBarRoot.publishDockChromeMetrics()
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           width: parent.width - trayPill.x
           height: root.barSize
           color: root.dockedBarColor
@@ -3024,6 +3083,8 @@ Item {
           anchors.leftMargin: 6
           anchors.verticalCenter: parent.verticalCenter
           width: settingsContent.width + 8 * 2
+          onXChanged: horizontalBarRoot.publishDockChromeMetrics()
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           height: root.barSize - Style.space(2)
 
           // Hidden (not just repositioned) when docked -- the merged
@@ -3176,6 +3237,8 @@ Item {
           // stays flat 8 in both modes -- unaffected either way.
           readonly property int leftPad: root.docked ? 20 : 8
           width: trayContent.width + 8 + leftPad
+          onXChanged: horizontalBarRoot.publishDockChromeMetrics()
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           height: root.barSize - Style.space(2)
 
           // Hidden (not just repositioned) when docked -- the merged
