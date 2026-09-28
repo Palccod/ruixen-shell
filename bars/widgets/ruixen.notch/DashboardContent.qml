@@ -275,6 +275,31 @@ Item {
     objects: [root.audioSink, root.audioSource].filter(function(n) { return n !== null })
   }
 
+  // The PwObjectTracker above got the node reachable/ready, but writing
+  // audio.volume directly still had zero real-world effect (confirmed
+  // live, traced down to PipeWire itself -- not this repo's QML). This
+  // machine's default sink exposes `device.routes`, meaning the real
+  // volume control lives on the parent Device's Route, not the Node's
+  // own props -- a raw `pw-cli set-param Props channelVolumes` on the
+  // node reproduced the exact same silent no-op. Quickshell's Pipewire
+  // QML module has no Device/Route API at all (checked its own
+  // qmltypes), so there's no way to reach the real control from QML.
+  // wpctl IS route-aware and is what actually moves the real mixer, so
+  // volume writes shell out to it instead -- muted keeps writing
+  // straight to audio.muted since that already worked correctly.
+  function sendVolumeStep(sink, steps) {
+    if (steps === 0) return
+    var proc = sink ? sinkVolumeProc : sourceVolumeProc
+    if (proc.running) return
+    var target = sink ? "@DEFAULT_AUDIO_SINK@" : "@DEFAULT_AUDIO_SOURCE@"
+    var pct = Math.abs(steps) * 5
+    proc.command = ["wpctl", "set-volume", target, pct + "%" + (steps > 0 ? "+" : "-"), "-l", "1.0"]
+    proc.running = true
+  }
+
+  Process { id: sinkVolumeProc; running: false }
+  Process { id: sourceVolumeProc; running: false }
+
   function formatTime(seconds) {
     var value = Math.max(0, Math.floor(Number(seconds) || 0))
     var minutes = Math.floor(value / 60)
@@ -2123,10 +2148,7 @@ Item {
         muted: root.audioSink && root.audioSink.audio ? root.audioSink.audio.muted : false
         value: root.speakerVolume
         onActivated: if (root.audioSink && root.audioSink.audio) root.audioSink.audio.muted = !root.audioSink.audio.muted
-        onWheelStepped: function(steps) {
-          if (root.audioSink && root.audioSink.audio)
-            root.audioSink.audio.volume = Math.max(0, Math.min(1, root.audioSink.audio.volume + steps * 0.05))
-        }
+        onWheelStepped: function(steps) { root.sendVolumeStep(true, steps) }
       }
       Dial {
         glyph: "\udb80\udf6c"
@@ -2134,10 +2156,7 @@ Item {
         muted: root.audioSource && root.audioSource.audio ? root.audioSource.audio.muted : false
         value: root.micVolume
         onActivated: if (root.audioSource && root.audioSource.audio) root.audioSource.audio.muted = !root.audioSource.audio.muted
-        onWheelStepped: function(steps) {
-          if (root.audioSource && root.audioSource.audio)
-            root.audioSource.audio.volume = Math.max(0, Math.min(1, root.audioSource.audio.volume + steps * 0.05))
-        }
+        onWheelStepped: function(steps) { root.sendVolumeStep(false, steps) }
       }
     }
   }
