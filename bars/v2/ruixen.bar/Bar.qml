@@ -2131,7 +2131,7 @@ Item {
         ctx.fill()
       }
 
-        Canvas {
+      Canvas {
         id: dockChromeShadowCanvas
         visible: false
         anchors.fill: parent
