@@ -606,6 +606,11 @@ Item {
     stdout: StdioCollector { waitForEnd: true }
   }
 
+  Process {
+    id: barSurfaceMaterialReloadProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
   function setBarMode(mode) {
     if (mode !== "docked" && mode !== "floating") return
     root.barMode = mode
@@ -1739,6 +1744,8 @@ Item {
   function setBarSurfaceMaterial(id) {
     root.barSurfaceMaterial = root.normalizeSurfaceMaterial(id)
     root.writeBarSurfaceState()
+    barSurfaceMaterialReloadProc.command = ["bash", "-c", "hyprctl reload >/dev/null 2>&1 || true"]
+    barSurfaceMaterialReloadProc.running = true
   }
 
   function setBarIconTone(id) {

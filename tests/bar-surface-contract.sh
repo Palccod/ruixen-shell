@@ -8,6 +8,9 @@ repo_dir="$(cd -- "$script_dir/.." && pwd)"
 bar_qml="$repo_dir/bars/v2/ruixen.bar/Bar.qml"
 notch_qml="$repo_dir/bars/widgets/ruixen.notch/Overlay.qml"
 settings_qml="$repo_dir/ruixen.launcher/SettingsContent.qml"
+ruixen_lua="$repo_dir/hyprland/looknfeel.ruixen.lua"
+half_lua="$repo_dir/hyprland/looknfeel.half.lua"
+square_lua="$repo_dir/hyprland/looknfeel.square.lua"
 run_all="$repo_dir/tests/run-all.sh"
 
 pass=0
@@ -39,7 +42,7 @@ check "floating pills resolve material opacity in one helper" \
   "$(grep -c 'readonly property color floatingPillFill: surfaceFillForMaterial(floatingPillSurface, floatingSurfaceMaterial)' "$bar_qml")" "1"
 
 check "glass material uses a translucent fill" \
-  "$(grep -A4 'function surfaceFillForMaterial' "$bar_qml" | grep -c 'material === "glass" ? 0.78')" "1"
+  "$(grep -A4 'function surfaceFillForMaterial' "$bar_qml" | grep -c 'material === "glass" ? 0.68')" "1"
 
 check "surface color identity is resolved in one helper" \
   "$(grep -A2 'function resolveSurfaceColor' "$bar_qml" | grep -c 'mode === "theme" ? Color.background : root.surfaceBlack')" "1"
@@ -95,11 +98,29 @@ check "bar reads the new bar surface state file" \
 check "launcher writes the new bar surface state file" \
   "$(grep -c 'bar-surface.json' "$settings_qml")" "2"
 
+check "launcher reloads Hyprland when Surface Material changes so layer rules update" \
+  "$(grep -A5 'function setBarSurfaceMaterial' "$settings_qml" | grep -c 'hyprctl reload')" "1"
+
 check "new bar-surface state wins over frame-appearance fallback" \
   "$(grep -h -c 'if (root.barSurfaceStateLoaded) return' "$bar_qml" "$settings_qml" | awk '{ total += $1 } END { print total }')" "2"
 
 check "launcher settings keeps frame-appearance as color compatibility state" \
   "$(grep -c 'frame-appearance.json is still mirrored for compatibility' "$settings_qml")" "1"
+
+check "all Ruixen lookfeel variants read bar-surface.json for floating bar glass" \
+  "$(grep -c 'bar-surface.json' "$ruixen_lua")$(grep -c 'bar-surface.json' "$half_lua")$(grep -c 'bar-surface.json' "$square_lua")" "111"
+
+check "all Ruixen lookfeel variants only enable bar glass for material glass" \
+  "$(grep -cF 'surfaceRaw:match('\''"material"%s*:%s*"glass"'\'')' "$ruixen_lua")$(grep -cF 'surfaceRaw:match('\''"material"%s*:%s*"glass"'\'')' "$half_lua")$(grep -cF 'surfaceRaw:match('\''"material"%s*:%s*"glass"'\'')' "$square_lua")" "111"
+
+check "all Ruixen lookfeel variants gate bar glass off in docked mode" \
+  "$(grep -cF 'shellRaw:match('\''"docked"%s*:%s*true'\'')' "$ruixen_lua")$(grep -cF 'shellRaw:match('\''"docked"%s*:%s*true'\'')' "$half_lua")$(grep -cF 'shellRaw:match('\''"docked"%s*:%s*true'\'')' "$square_lua")" "111"
+
+check "all Ruixen lookfeel variants add omarchy-bar blur behind the floating glass guard" \
+  "$(grep -c 'if ruixenFloatingBarGlassEnabled then' "$ruixen_lua")$(grep -c 'match = { namespace = "omarchy-bar" }' "$ruixen_lua")$(grep -c 'if ruixenFloatingBarGlassEnabled then' "$half_lua")$(grep -c 'match = { namespace = "omarchy-bar" }' "$half_lua")$(grep -c 'if ruixenFloatingBarGlassEnabled then' "$square_lua")$(grep -c 'match = { namespace = "omarchy-bar" }' "$square_lua")" "111111"
+
+check "notch/frame namespaces still have no glass layer rule in this floating-only pass" \
+  "$(grep -h -c 'namespace = "ruixen-notch"\|namespace = "omarchy-shell-frame"' "$ruixen_lua" "$half_lua" "$square_lua" | awk '{ total += $1 } END { print total }')" "0"
 
 # shellcheck disable=SC2016 # deliberately literal: expected run-all entry contains $script_dir.
 check "tests/run-all.sh runs this suite" \
