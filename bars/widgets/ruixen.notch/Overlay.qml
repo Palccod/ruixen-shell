@@ -1990,11 +1990,41 @@ Item {
                   anchors.fill: parent
                   enabled: root.hasMedia
                   cursorShape: root.hasMedia ? Qt.PointingHandCursor : Qt.ArrowCursor
-                  onWheel: root.toggleMediaVizMode()
-                  // Click cycles bars/wave -- only meaningful once
-                  // already in cava mode (nothing to cycle on the
-                  // seeker or window name), direct request.
-                  onClicked: if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()
+                  // This MouseArea only actually receives input while
+                  // mediaVizMode is "cava" -- the seeker's own Item
+                  // (with its own MouseArea) sits on top and shadows
+                  // this one entirely whenever it's visible. Right
+                  // click switches back to the seeker, mirroring the
+                  // seeker's own MouseArea's right click going the
+                  // other way -- direct follow-up: "right click to go
+                  // back to the seeker." Wheel no longer toggles mode
+                  // here (removed) -- right click now owns that switch
+                  // exclusively in both directions, freeing wheel up to
+                  // mean "seek" whenever the seeker is the thing
+                  // showing, not "leave the seeker."
+                  acceptedButtons: Qt.LeftButton | Qt.RightButton
+                  onClicked: function(mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                      root.toggleMediaVizMode()
+                      return
+                    }
+                    // Left click cycles bars/wave -- only meaningful
+                    // once already in cava mode (nothing to cycle on
+                    // the seeker or window name), direct request.
+                    if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()
+                  }
+                  // Wheel cycles bars/wave here too, mirroring the
+                  // seeker's own wheel-seeks-instead-of-switches change
+                  // -- direct follow-up: "on the visualizer when the
+                  // bars are showing, i cant scroll to the wave
+                  // anymore... i guess right click and wheel scroll?"
+                  // Left click keeps doing the same thing too (not
+                  // replaced) -- both are just different ways to reach
+                  // the one toggle, same as wheel/click already being
+                  // two paths to the same seek on the other row.
+                  onWheel: function(wheel) {
+                    if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()
+                  }
                 }
 
               // Track (full length, dim) + wave (played portion only, up
@@ -2142,7 +2172,19 @@ Item {
                 onClicked: function(mouse) {
                   if (mouse.button === Qt.RightButton) root.toggleMediaVizMode()
                 }
-                onWheel: function(wheel) { root.toggleMediaVizMode() }
+                // Wheel now seeks (5s/notch, same flat-step convention
+                // Display/Audio's own volume-scroll rows already use)
+                // instead of switching to the visualizer -- direct
+                // follow-up: "when i [wheel] scroll it is going to the
+                // visualizer, we dont want that... lets use the wheel
+                // scroll to control the seeker when the seeker is
+                // showing." Right click (above) is now the only way to
+                // leave the seeker.
+                onWheel: function(wheel) {
+                  var delta = wheel.angleDelta.y > 0 ? 5 : -5
+                  var target = Math.max(0, Math.min(root.trackLength, root.trackPosition + delta))
+                  root.sendMediaSeek(target)
+                }
               }
               }
 

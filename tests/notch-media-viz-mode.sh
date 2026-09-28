@@ -89,8 +89,19 @@ check "the cava mini slot is scoped to media present AND cava mode selected" \
   "$(grep -c 'visible: root.hasMedia && root.mediaVizMode === "cava"' "$overlay_qml")" "1"
 check "the window name stays unconditional on media absence, no mode gating" \
   "$(grep -c 'visible: !root.hasMedia' "$overlay_qml")" "1"
-check "a wheel-triggered MouseArea toggles the mode, enabled only while media plays" \
-  "$(grep -B2 'onWheel: root.toggleMediaVizMode()' "$overlay_qml" | grep -c 'enabled: root.hasMedia')" "1"
+# Wheel no longer toggles mode -- the seeker's own MouseArea (visible
+# only in seeker mode) repurposes wheel to seek instead, and right
+# click is now the only way to switch modes (see the seek-support PR's
+# own follow-up commit for why: wheel scrolling the seeker used to
+# accidentally jump to the visualizer).
+check "right click toggles the mode on the always-present now-playing slot" \
+  "$(grep -c 'if (mouse.button === Qt.RightButton) {' "$overlay_qml")" "1"
+check "right click toggles the mode on the seeker's own MouseArea too" \
+  "$(grep -c 'if (mouse.button === Qt.RightButton) root.toggleMediaVizMode()' "$overlay_qml")" "1"
+check "wheel on the seeker seeks instead of switching modes" \
+  "$(grep -c 'wheel.angleDelta.y > 0 ? 5 : -5' "$overlay_qml")" "1"
+check "no MouseArea wheel handler still toggles the mode" \
+  "$(grep -c 'onWheel:.*toggleMediaVizMode' "$overlay_qml")" "0"
 
 # --- bars/wave click toggle, within cava mode only ------------------------
 # Segments deliberately excluded -- see cavaMiniStyle's own comment for
@@ -103,8 +114,10 @@ check "no segments option actually implemented -- bars/wave only (comments may s
   "$(grep -c 'cavaMiniStyle === "segments"\|cavaMiniStyle: "segments"' "$overlay_qml")" "0"
 check "toggleCavaMiniStyle flips bars/wave and persists" \
   "$(grep -A3 'function toggleCavaMiniStyle' "$overlay_qml" | grep -c 'writeMediaVizMode()')" "1"
-check "a click on the slot toggles style, but only while already in cava mode" \
-  "$(grep -c 'onClicked: if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()' "$overlay_qml")" "1"
+# 2, not 1 -- both left click AND wheel now reach the same toggle
+# (identical guard text in each handler), not just click alone.
+check "left click AND wheel on the slot toggle style, but only while already in cava mode" \
+  "$(grep -c 'if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()' "$overlay_qml")" "2"
 check "the mode/style state file round-trips both fields together" \
   "$(grep -c 'mode: root.mediaVizMode, style: root.cavaMiniStyle' "$overlay_qml")" "1"
 

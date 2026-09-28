@@ -686,6 +686,23 @@ Item {
                   var finalRatio = r >= 0 ? r : previewRatio
                   root.sendMediaSeek(finalRatio * root.trackLength)
                 }
+
+                // Direct follow-up: "the seeker click works now but can
+                // we add wheel scroll here too for the seeker" -- same
+                // Util.wheelSteps accumulator/5%-per-notch convention
+                // the brightness slider and volume dials already use in
+                // this file, and the same 5s-per-notch step the compact
+                // notch's own seeker wheel handler uses (Overlay.qml),
+                // for consistency between the two.
+                property real seekWheelAccumulator: 0
+                onWheel: function(wheel) {
+                  var steps = Util.wheelSteps(seekWheelAccumulator, wheel.angleDelta.y)
+                  seekWheelAccumulator = steps.remainder
+                  if (steps.steps !== 0) {
+                    var target = Math.max(0, Math.min(root.trackLength, root.trackPosition + steps.steps * 5))
+                    root.sendMediaSeek(target)
+                  }
+                }
               }
             }
 
