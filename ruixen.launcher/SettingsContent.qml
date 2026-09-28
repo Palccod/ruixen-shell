@@ -1646,8 +1646,11 @@ Item {
     onLoadFailed: root.loadCavaState("")
   }
 
-  // Frame color -- just "theme" (tracking the active theme's own
-  // background live) or "black" (fixed OLED black). Was a Themed/Custom
+  // Bar surface -- color ("theme"/"black") and material ("solid"/"glass")
+  // are independent axes. The new bar-surface.json file owns both; the
+  // older frame-appearance.json is still mirrored for compatibility because
+  // ruixen.notch currently reads it for the coupled notch/frame color.
+  // Was a Themed/Custom
   // split with a 3-swatch color picker (OLED Black/Charcoal/White) --
   // direct correction after live testing: "some themes uses white like
   // lupine and few other light theme, this would make the notch
@@ -1659,18 +1662,67 @@ Item {
   // without a much bigger light-background rework, rather than trying
   // to patch around just the one reported swatch.
   property string frameColorMode: "black"
+  property string barSurfaceMaterial: "solid"
+  property string barIconTone: "mono"
+  property bool barSurfaceStateLoaded: false
+  readonly property string barSurfaceStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-surface.json"
+  readonly property string barIconToneStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-icon-tone.json"
   readonly property string frameAppearanceStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/frame-appearance.json"
 
-  // Old files from before this simplification (mode: "custom",
-  // customColor: "#...") degrade safely here too -- "custom" isn't a
-  // recognized mode string anymore, so this just falls through to the
-  // new "black" default, same as Bar.qml's own copy of this function.
-  function loadFrameAppearanceState(raw) {
+  function normalizeSurfaceColorMode(mode) { return mode === "theme" ? "theme" : "black" }
+  function normalizeSurfaceMaterial(material) { return material === "glass" ? "glass" : "solid" }
+  function normalizeIconTone(tone) { return tone === "accent" ? "accent" : "mono" }
+
+  function applyBarSurfaceState(colorMode, material) {
+    root.frameColorMode = root.normalizeSurfaceColorMode(colorMode)
+    root.barSurfaceMaterial = root.normalizeSurfaceMaterial(material)
+  }
+
+  function loadBarSurfaceState(raw) {
     try {
       var p = JSON.parse(String(raw || "").trim() || "{}")
-      root.frameColorMode = (p && p.mode === "theme") ? "theme" : "black"
+      root.applyBarSurfaceState(p && p.color, p && p.material)
+      root.barSurfaceStateLoaded = true
     } catch (e) {
-      root.frameColorMode = "black"
+      root.barSurfaceStateLoaded = false
+      frameAppearanceFile.reload()
+    }
+  }
+
+  function writeBarSurfaceState() {
+    barSurfaceFile.setText(JSON.stringify({
+      version: 1,
+      color: root.frameColorMode,
+      material: root.barSurfaceMaterial
+    }, null, 2) + "\n")
+  }
+
+  function loadBarIconToneState(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.barIconTone = root.normalizeIconTone(p && p.tone)
+    } catch (e) {
+      root.barIconTone = "mono"
+    }
+  }
+
+  function writeBarIconToneState() {
+    barIconToneFile.setText(JSON.stringify({
+      version: 1,
+      tone: root.barIconTone
+    }, null, 2) + "\n")
+  }
+
+  // Old files from before this simplification (mode: "custom", customColor:
+  // "#...") degrade safely here too. This remains as the compatibility
+  // fallback/mirror for color, not material.
+  function loadFrameAppearanceState(raw) {
+    if (root.barSurfaceStateLoaded) return
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.applyBarSurfaceState(p && p.mode, root.barSurfaceMaterial)
+    } catch (e) {
+      root.applyBarSurfaceState("black", root.barSurfaceMaterial)
     }
   }
 
@@ -1678,7 +1730,35 @@ Item {
     frameAppearanceFile.setText(JSON.stringify({ mode: root.frameColorMode }, null, 2) + "\n")
   }
 
-  function setFrameColorMode(id) { root.frameColorMode = id; root.writeFrameAppearanceState() }
+  function setFrameColorMode(id) {
+    root.frameColorMode = root.normalizeSurfaceColorMode(id)
+    root.writeBarSurfaceState()
+    root.writeFrameAppearanceState()
+  }
+
+  function setBarSurfaceMaterial(id) {
+    root.barSurfaceMaterial = root.normalizeSurfaceMaterial(id)
+    root.writeBarSurfaceState()
+  }
+
+  function setBarIconTone(id) {
+    root.barIconTone = root.normalizeIconTone(id)
+    root.writeBarIconToneState()
+  }
+
+  FileView {
+    id: barSurfaceFile
+    path: root.barSurfaceStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarSurfaceState(text())
+    onLoadFailed: {
+      root.barSurfaceStateLoaded = false
+      frameAppearanceFile.reload()
+    }
+  }
 
   FileView {
     id: frameAppearanceFile
@@ -1689,6 +1769,17 @@ Item {
     onFileChanged: reload()
     onLoaded: root.loadFrameAppearanceState(text())
     onLoadFailed: root.loadFrameAppearanceState("")
+  }
+
+  FileView {
+    id: barIconToneFile
+    path: root.barIconToneStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarIconToneState(text())
+    onLoadFailed: root.barIconTone = "mono"
   }
 
   // App Launcher's own "Launcher Mark" picker, below on the Bar page --
@@ -2000,6 +2091,16 @@ Item {
       options: ["theme", "black"],
       current: root.frameColorMode,
       activate: function(id) { root.setFrameColorMode(id) }
+    },
+    {
+      options: ["solid", "glass"],
+      current: root.barSurfaceMaterial,
+      activate: function(id) { root.setBarSurfaceMaterial(id) }
+    },
+    {
+      options: ["mono", "accent"],
+      current: root.barIconTone,
+      activate: function(id) { root.setBarIconTone(id) }
     },
     {
       options: ["floating", "docked"],
@@ -2493,8 +2594,8 @@ Item {
       // scrollToFocusedItem() a small, correctly-positioned target to
       // scroll to, the same as every other (much smaller) item here
       // already gets for free.
-      if (root.focusedItemIndex === 3) return iconRepeater.itemAt(root.focusedOptionIndex)
-      return [frameColorModeItem, barLayoutItem, notchVisibilityItem, appLauncherIconItem][root.focusedItemIndex]
+      if (root.focusedItemIndex === 5) return iconRepeater.itemAt(root.focusedOptionIndex)
+      return [frameColorModeItem, surfaceMaterialItem, iconToneItem, barLayoutItem, notchVisibilityItem, appLauncherIconItem][root.focusedItemIndex]
     }
     if (root.launcherOpen) {
       if (root.focusedItemIndex === 0) return includeHomeRow
@@ -3261,7 +3362,7 @@ Item {
     onActivated: (id) => root.setAnimationProfile(id)
   }
 
-  // Frame color -- theme it (tracks the active theme's own background
+  // Surface color -- theme it (tracks the active theme's own background
   // live) or plain black. Same "Themed"/mode-name wording ruixen.settings'
   // own Glass Tint card already established elsewhere in this file, for
   // consistency across the two closest analogous settings. Was a
@@ -3273,12 +3374,12 @@ Item {
   //
   // Moved here from the Desktop page, above Bar Layout -- direct
   // request: "move the frame color from the setting out of desktop and
-  // lets put it in Bars above bar layout." It shapes the bar's own
-  // frame/docked-shoulder surface (see AGENTS.md #9's "coupled visual
-  // surfaces"), not anything Desktop-page-specific.
+  // lets put it in Bars above bar layout." It now shapes the bar's own
+  // floating pills plus frame/docked-shoulder surface (see AGENTS.md #9's
+  // "coupled visual surfaces"), not anything Desktop-page-specific.
   SettingsSegmentedItem {
     id: frameColorModeItem
-    label: "Frame Color"
+    label: "Surface Color"
     options: [
       { id: "theme", label: "Themed" },
       { id: "black", label: "Black" }
@@ -3292,6 +3393,42 @@ Item {
     accent: root.accent
     fontFamily: root.fontFamily
     onActivated: (id) => root.setFrameColorMode(id)
+  }
+
+  SettingsSegmentedItem {
+    id: surfaceMaterialItem
+    label: "Surface Material"
+    options: [
+      { id: "solid", label: "Solid" },
+      { id: "glass", label: "Glass" }
+    ]
+    current: root.barSurfaceMaterial
+    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 1
+    focusedOptionIndex: surfaceMaterialItem.cardFocused ? root.focusedOptionIndex : -1
+    visible: root.barOpen
+    textColor: root.textColor
+    muted: root.muted
+    accent: root.accent
+    fontFamily: root.fontFamily
+    onActivated: (id) => root.setBarSurfaceMaterial(id)
+  }
+
+  SettingsSegmentedItem {
+    id: iconToneItem
+    label: "Icon Tone"
+    options: [
+      { id: "mono", label: "Mono" },
+      { id: "accent", label: "Accent" }
+    ]
+    current: root.barIconTone
+    cardFocused: root.barOpen && root.rightFocused && root.focusedItemIndex === 2
+    focusedOptionIndex: iconToneItem.cardFocused ? root.focusedOptionIndex : -1
+    visible: root.barOpen
+    textColor: root.textColor
+    muted: root.muted
+    accent: root.accent
+    fontFamily: root.fontFamily
+    onActivated: (id) => root.setBarIconTone(id)
   }
 
   // Bar's own single item -- direct request: "think we're ready for
@@ -3309,8 +3446,8 @@ Item {
       { id: "docked", label: "Docked" }
     ]
     current: root.barMode
-    // 1, not 0 -- Frame Color took index 0 once it moved onto this page.
-    cardFocused: root.rightFocused && root.focusedItemIndex === 1
+    // 3, not 0 -- Surface Color/Material/Icon Tone sit above it.
+    cardFocused: root.rightFocused && root.focusedItemIndex === 3
     focusedOptionIndex: cardFocused ? root.focusedOptionIndex : -1
     visible: root.barOpen
     textColor: root.textColor
@@ -3362,8 +3499,8 @@ Item {
       { id: "hidden", label: "Hidden" }
     ]
     current: root.notchVisibilityCurrentId()
-    // 2, not 1 -- Frame Color took index 0 once it moved onto this page.
-    cardFocused: root.rightFocused && root.focusedItemIndex === 2
+    // 4, not 1 -- Surface Color/Material/Icon Tone sit above it.
+    cardFocused: root.rightFocused && root.focusedItemIndex === 4
     focusedOptionIndex: cardFocused ? root.focusedOptionIndex : -1
     visible: root.barOpen
     textColor: root.textColor
@@ -3383,7 +3520,7 @@ Item {
   //
   // Keyboard nav added per direct follow-up ("that setting option i
   // cant tab into and use dpad to select a new icon") -- this card
-  // slotted into barItems above (index 2) as an ordinary {options,
+  // slotted into barItems above (index 5) as an ordinary {options,
   // current, activate} entry, same shape as every other item, so
   // Tab/Left/Right/Enter all already work generically; only the
   // VISUAL focus indicators below are specific to this card (the
@@ -3399,9 +3536,9 @@ Item {
     color: Qt.rgba(0, 0, 0, 0.18)
     // Card-level focus ring -- same convention profilePictureItem's
     // own comment documents ("tab between cards... then left or right
-    // direction and enter for that option"). 3, not 2 -- Frame Color
-    // took index 0 once it moved onto this page.
-    border.width: root.rightFocused && root.focusedItemIndex === 3 ? 1 : 0
+    // direction and enter for that option"). 5, not 2 -- Surface
+    // Color/Material/Icon Tone sit above it on this page.
+    border.width: root.rightFocused && root.focusedItemIndex === 5 ? 1 : 0
     border.color: root.accent
     visible: root.barOpen
 
@@ -3444,10 +3581,10 @@ Item {
             // the identical reason (an all-white border here would
             // clobber the accent ring's own "this is applied"
             // meaning).
-            // 3, not 2 -- Frame Color took index 0 once it moved onto
-            // this page.
+            // 5, not 2 -- Surface Color/Material/Icon Tone sit above it
+            // on this page.
             readonly property bool isFocused: root.rightFocused
-              && root.focusedItemIndex === 3 && root.focusedOptionIndex === iconBtn.index
+              && root.focusedItemIndex === 5 && root.focusedOptionIndex === iconBtn.index
 
             width: 32
             height: 32

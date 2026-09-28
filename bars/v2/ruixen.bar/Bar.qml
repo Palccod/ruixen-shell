@@ -79,44 +79,74 @@ Item {
   property color themeForeground: Color.bar.text
   property color themeContrastForeground: Color.background
   property color transparentForeground: Color.bar.text
-  // Every pill (component GroupPill below) is hardcoded OLED black
-  // regardless of theme. Color.bar.text (the theme's body-text color) is
-  // fine against that on almost every theme -- checked across Aura Soft,
-  // Everforest, Gruvbox, Nord, Catppuccin, Tokyo Night: foreground is
-  // already light/off-white on all of them, since that's what "readable
-  // body text" means on a dark theme. Two real exceptions: light themes
-  // (e.g. "White"), where foreground flips near-black for readability on
-  // THAT theme's own light background, and Rose Pine specifically, a
-  // dark theme whose foreground (#575279, a muted dark purple) is still
-  // too dark against black despite the theme itself being dark-mode.
-  // Neither is a light/dark toggle -- it's actual luminance -- so measure
-  // it directly and only fall back to a fixed light color when the
-  // theme's own foreground genuinely wouldn't read, instead of
-  // overriding every theme's icon color wholesale (an earlier pass tried
-  // Color.accent for this and lost each theme's actual look for no
-  // reason, since accent is a single "pop" hue, not the resting
-  // icon/text color stock Omarchy uses).
-  readonly property real themeForegroundLuminance: 0.299 * themeForeground.r + 0.587 * themeForeground.g + 0.114 * themeForeground.b
-  readonly property color safeForeground: "#e8e8e8"
+  // #78 surface contract: bar surfaces resolve through semantic tokens before
+  // any component extraction or visual redesign. Color and material are
+  // independent axes; the new bar-surface.json state is authoritative when
+  // present, with the older frame-appearance.json kept as color fallback.
+  readonly property color surfaceBlack: "#000000"
+  readonly property color surfaceSafeLightForeground: "#e8e8e8"
+  readonly property color surfaceSafeDarkForeground: "#101010"
+  readonly property color surfaceShadow: surfaceBlack
+  readonly property string floatingSurfaceColorMode: root.frameColorMode
+  readonly property string floatingSurfaceMaterial: root.barSurfaceMaterial
+  readonly property color floatingPillSurface: resolveSurfaceColor(floatingSurfaceColorMode)
+  readonly property color floatingPillFill: surfaceFillForMaterial(floatingPillSurface, floatingSurfaceMaterial)
+  readonly property real floatingPillSurfaceLuminance: surfaceLuminance(floatingPillSurface)
+  readonly property real themeForegroundLuminance: surfaceLuminance(themeForeground)
+
+  function surfaceLuminance(c) {
+    return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+  }
+
+  function resolveSurfaceColor(mode) {
+    return mode === "theme" ? Color.background : root.surfaceBlack
+  }
+
+  function surfaceFillForMaterial(surface, material) {
+    var alpha = material === "glass" ? 0.78 : surface.a
+    return Qt.rgba(surface.r, surface.g, surface.b, alpha)
+  }
+
+  function readableForegroundForSurface(surface, preferred) {
+    var surfaceIsLight = root.surfaceLuminance(surface) > 0.5
+    var preferredIsLight = root.surfaceLuminance(preferred) > 0.45
+    return surfaceIsLight
+      ? (preferredIsLight ? root.surfaceSafeDarkForeground : preferred)
+      : (preferredIsLight ? preferred : root.surfaceSafeLightForeground)
+  }
+
+  function contentSurfaceFor(surface) {
+    return root.surfaceLuminance(surface) > 0.5 ? root.surfaceBlack : surface
+  }
+
   // themeForeground itself is left theme-following since it also feeds
   // the legacy transparent-bar wallpaper-contrast script below
-  // (omarchy-bar-text-color). Most stock widgets (network, audio,
-  // bluetooth, etc.) read bar.foreground directly for their icon/text
-  // color, not bar.barForeground (that one only feeds WidgetButton's own
-  // default + a few of our pill decorations) -- both need to be pinned,
-  // not just one, or half the icons stay theme-black.
+  // (omarchy-bar-text-color). Keep bar-row text/icons and popup content
+  // separate: WidgetButton/BarIconButton defaults consume barForeground
+  // for the bar pill itself, while stock panel bodies often read
+  // bar.foreground for popup text. Those popup bodies must follow
+  // Color.popups.text, not the bar pill surface, or light/dark surface
+  // combinations can collapse into black-on-black or white-on-white.
   //
   // barForeground is unconditionally pillForeground, NOT gated on
   // useTransparentForeground -- that whole subsystem (requestedTransparent
   // / omarchy-bar-text-color) exists for the *stock* bar's fully
   // see-through mode, picking a contrasting text color against whatever
-  // wallpaper shows through. Our GroupPills are always opaque OLED black
-  // regardless of shell.json's bar.transparent setting, so that script's
-  // answer (frequently black, e.g. against a light wallpaper) has nothing
-  // to do with what's actually readable against our pills, and was
-  // silently winning over this fix whenever bar.transparent was on.
-  readonly property color pillForeground: themeForegroundLuminance > 0.45 ? themeForeground : safeForeground
+  // wallpaper shows through. Ruixen pills paint their own semantic surface,
+  // so that script's answer has nothing to do with what's readable here.
+  readonly property color pillForeground: readableForegroundForSurface(floatingPillSurface, themeForeground)
+  readonly property color popupForeground: Color.popups.text
   property color foreground: pillForeground
+  property string iconTone: "mono"
+  readonly property color iconForeground: iconTone === "accent" ? Color.accent : pillForeground
+  // Semantic status colors intentionally bypass Icon Tone. Mono/Accent only
+  // controls decorative icons; stateful indicators still need readable
+  // good/warn/bad colors from the active theme palette.
+  readonly property color semanticGood: themeGreen
+  readonly property color semanticWarn: themeYellow
+  readonly property color semanticBad: themeRed
+  readonly property color semanticInfo: Color.accent
+  readonly property color semanticNeutral: iconForeground
   // Not readonly -- Behavior on barForeground below needs write access to
   // intercept it, even though nothing assigns it imperatively anymore.
   property color barForeground: pillForeground
@@ -541,20 +571,90 @@ Item {
   // "remove white from the setting as an option then and just leave
   // Black and Theme."
   property string frameColorMode: "black"
-  readonly property color frameColor: root.frameColorMode === "theme" ? Color.background : "#000000"
+  property string barSurfaceMaterial: "solid"
+  readonly property color frameColor: resolveSurfaceColor(root.frameColorMode)
   // Docked mode's merged shoulder strip (leftDockedBg/rightDockedBg and
   // their wing pieces below) hides every individual pill's own
   // background (GroupPill { visible: !root.docked }) and renders icons
   // directly against this fill -- same situation ruixen.notch's own
   // notchColor is in, and for the same reason it needs the same clamp:
-  // pillForeground above is computed assuming a permanently-black
-  // backdrop, so a light frameColor (Theme mode on an actual light
-  // theme) would make every docked icon unreadable, not just look
-  // "off". Falls back to plain black instead of frameColor whenever
+  // docked foreground resolves against the floating pill surface for
+  // Phase 1, so a light frameColor (Theme mode on an actual light theme)
+  // would make every docked icon unreadable, not just look "off".
+  // Falls back to plain black instead of frameColor whenever
   // frameColor itself reads too light -- mirrors ruixen.notch/Overlay.qml's
   // own resolvedFrameColorLuminance/notchColor pair exactly.
-  readonly property real frameColorLuminance: 0.299 * root.frameColor.r + 0.587 * root.frameColor.g + 0.114 * root.frameColor.b
-  readonly property color dockedBarColor: root.frameColorLuminance > 0.5 ? "#000000" : root.frameColor
+  readonly property real frameColorLuminance: surfaceLuminance(root.frameColor)
+  readonly property color dockedBarColor: contentSurfaceFor(root.frameColor)
+
+  readonly property string barIconToneStatePath: root.stateHome + "/ruixen/bar-icon-tone.json"
+
+  function normalizeIconTone(tone) {
+    return tone === "accent" ? "accent" : "mono"
+  }
+
+  function loadBarIconTone(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.iconTone = normalizeIconTone(p && p.tone)
+    } catch (e) {
+      root.iconTone = "mono"
+    }
+  }
+
+  FileView {
+    id: barIconToneFile
+    path: root.barIconToneStatePath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarIconTone(text())
+    onLoadFailed: root.iconTone = "mono"
+  }
+
+  // bar-surface.json is the new #78 state for independent color/material
+  // axes. frame-appearance.json remains as a compatibility fallback and
+  // notch mirror until the coupled notch/frame surface is migrated too.
+  readonly property string barSurfaceStatePath: root.stateHome + "/ruixen/bar-surface.json"
+  property bool barSurfaceStateLoaded: false
+
+  function normalizeSurfaceColorMode(mode) {
+    return mode === "theme" ? "theme" : "black"
+  }
+
+  function normalizeSurfaceMaterial(material) {
+    return material === "glass" ? "glass" : "solid"
+  }
+
+  function applyBarSurfaceState(colorMode, material) {
+    root.frameColorMode = normalizeSurfaceColorMode(colorMode)
+    root.barSurfaceMaterial = normalizeSurfaceMaterial(material)
+  }
+
+  function loadBarSurfaceState(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.applyBarSurfaceState(p && p.color, p && p.material)
+      root.barSurfaceStateLoaded = true
+    } catch (e) {
+      root.barSurfaceStateLoaded = false
+      frameColorFile.reload()
+    }
+  }
+
+  FileView {
+    id: barSurfaceFile
+    path: root.barSurfaceStatePath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarSurfaceState(text())
+    onLoadFailed: {
+      root.barSurfaceStateLoaded = false
+      frameColorFile.reload()
+    }
+  }
+
   // JSON, not a plain string -- kept the shape (an object with a "mode"
   // key) even though customColor is gone, so an old file from before
   // this simplification (mode: "custom", customColor: "#...") degrades
@@ -575,11 +675,14 @@ Item {
   // ruixen.cava's own loadCavaState/onLoadFailed pattern, called with ""
   // on failure.
   function loadFrameAppearance(raw) {
+    if (root.barSurfaceStateLoaded) return
     try {
       var p = JSON.parse(String(raw || "").trim() || "{}")
-      root.frameColorMode = (p && p.mode === "theme") ? "theme" : "black"
+      root.frameColorMode = normalizeSurfaceColorMode(p && p.mode)
+      root.barSurfaceMaterial = "solid"
     } catch (e) {
       root.frameColorMode = "black"
+      root.barSurfaceMaterial = "solid"
     }
   }
 
@@ -900,7 +1003,7 @@ Item {
   // for me to always see it right now" -- pill 2, pinned on demand
   // through ruixen.pluginpins, same as stayawake/agents, rather than a
   // permanent fixture here).
-  readonly property var curatedRightIds: ["omarchy.system-update", "omarchy.power", "ruixen.capturestatus", "ruixen.quickactions", "ruixen.settingsbutton"]
+  readonly property var curatedRightIds: ["omarchy.system-update", "ruixen.power", "ruixen.capturestatus", "ruixen.quickactions", "ruixen.settingsbutton"]
   // The two ids clockPill gives its own special pill+divider treatment
   // (see clockPill's own comment) -- direct review finding ("Support
   // arbitrary third-party widgets in the horizontal center region",
@@ -1522,16 +1625,12 @@ Item {
     }
   }
 
-  // Tonal floating-pill background shared by each module group — same hue
-  // as the theme's bar background (Color.bar.background), just opaque, so
-  // each group reads as a "raised" island instead of the bar having one
-  // continuous solid background.
+  // Floating-pill background shared by each module group. The actual color
+  // comes from the root surface resolver so future Theme/Glass work changes
+  // the token once instead of cloning literals into every pill.
   component GroupPill: Rectangle {
     radius: height / 2
-    // Solid OLED black, matching ruixen.frame-widget's hardcoded
-    // frameColor — was Color.bar.background (theme-linked) at 0.85
-    // opacity, read as too close to transparent against the frame.
-    color: "#000000"
+    color: root.floatingPillFill
     // Without this, a full circle (radius === width/2 === height/2, like
     // the solo menu pill) renders as a faceted octagon instead of a
     // smooth curve — much more visible than on a stadium shape (most of
@@ -1553,13 +1652,32 @@ Item {
     // the pill's own edge instead of spreading/softening it into a
     // faded halo; opacity 0.6 -> 0.8 makes it read as a real shadow
     // rather than a faint tint.
+    //
+    // Bumped again (0.15/1 -> 0.35/3) per direct follow-up once both
+    // Solid and Glass surface materials landed (#78): at the tight,
+    // low-blur/low-offset settings above the shadow read as barely
+    // there, especially under Glass's own semi-transparent fill --
+    // "can you add a drop shadow to it so it looks a bit raised from
+    // the bg" (asked as if there were none at all).
+    //
+    // 0.35/3 overshot -- direct live correction ("thats a bit too far,
+    // is there a little bit tighter shadow but not as tight as
+    // before"): landed on 0.24/2, the midpoint between the original
+    // barely-there pass and the overshot one.
+    //
+    // shadowColor itself is already pure black (root.surfaceShadow) --
+    // opacity 0.8 blended with the blur is what read as "greyish/muted
+    // black" rather than the color being wrong (direct live question:
+    // "is the shadow black? i feel like it looks more greyish"). Bumped
+    // to 0.95 so the shadow's own core reads solidly black instead of a
+    // washed-out tint, blur/offset unchanged.
     layer.enabled: true
     layer.effect: MultiEffect {
       shadowEnabled: true
-      shadowColor: "#000000"
-      shadowOpacity: 0.8
-      shadowBlur: 0.15
-      shadowVerticalOffset: 1
+      shadowColor: root.surfaceShadow
+      shadowOpacity: 0.95
+      shadowBlur: 0.24
+      shadowVerticalOffset: 2
     }
   }
 
@@ -3501,7 +3619,16 @@ Item {
 
     required property string moduleName
 
-    readonly property color foreground: root.foreground
+    readonly property color foreground: root.popupForeground
+    readonly property color iconForeground: root.iconForeground
+    readonly property color semanticGood: root.semanticGood
+    readonly property color semanticWarn: root.semanticWarn
+    readonly property color semanticBad: root.semanticBad
+    readonly property color semanticInfo: root.semanticInfo
+    readonly property color semanticNeutral: root.semanticNeutral
+    readonly property color themePrimary: root.themePrimary
+    readonly property color themeSecondary: root.themeSecondary
+    readonly property bool themeMonochrome: root.themeMonochrome
     readonly property string fontFamily: root.fontFamily
     readonly property color barForeground: root.barForeground
     readonly property bool foregroundAnimationEnabled: root.foregroundAnimationEnabled
