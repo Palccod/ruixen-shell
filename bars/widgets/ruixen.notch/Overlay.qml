@@ -2017,7 +2017,15 @@ Item {
 
               // Split point -- where the wave's played portion meets
               // the dim unplayed track, before any gap trim.
-              readonly property real splitX: width * (seekerDragArea.pressed ? seekerDragArea.previewRatio : root.progressRatio)
+              //
+              // pressedButtons & LeftButton, not the bare pressed flag --
+              // seekerDragArea now also accepts the right button (see its
+              // own comment), and pressed goes true for ANY accepted
+              // button. A right-click-hold with the bare flag would
+              // freeze this at previewRatio's last (possibly stale, e.g.
+              // 0 before any left-drag ever happened) value instead of
+              // showing the real live position while held.
+              readonly property real splitX: width * ((seekerDragArea.pressedButtons & Qt.LeftButton) ? seekerDragArea.previewRatio : root.progressRatio)
               // Same gap-around-the-tip design as the player ring/
               // dials/brightness bar, ported here too now that it's
               // right on the other components -- per direct request
@@ -2085,7 +2093,7 @@ Item {
                 visible: root.hasMedia
 
                 Behavior on x {
-                  enabled: !seekerDragArea.pressed
+                  enabled: !(seekerDragArea.pressedButtons & Qt.LeftButton)
                   NumberAnimation { duration: 450 }
                 }
               }
@@ -2095,22 +2103,44 @@ Item {
                 anchors.fill: parent
                 enabled: root.hasMedia && root.canSeek && root.trackLength > 0
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                // Left drags to seek (this row's whole reason for
+                // existing), which collided with left click's prior job
+                // of switching between the seeker and the mini cava
+                // visualizer. Direct follow-up: "if left click controls
+                // the seeker then we cant use left click to switch to
+                // visualizer... right click triggers the visualizer
+                // instead now." MouseArea only accepts Left by default,
+                // so Right is explicitly opted in below and routed to
+                // toggleMediaVizMode via onClicked -- onPressed/
+                // onPositionChanged/onReleased all stay gated to the
+                // left button specifically (mouse.button/pressedButtons
+                // checks, not the bare pressed/press-only mouse.button
+                // default) so a right click can't also start a seek
+                // drag. Wheel already toggled the same viz mode before
+                // this PR and still does, unchanged -- this just adds a
+                // second, more discoverable way to reach it now that
+                // left click itself means something else on this row.
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 property real previewRatio: 0
                 function ratioFromMouse(mouse) {
                   if (width <= 0) return 0
                   return Math.max(0, Math.min(1, mouse.x / width))
                 }
                 onPressed: function(mouse) {
-                  previewRatio = ratioFromMouse(mouse)
+                  if (mouse.button === Qt.LeftButton) previewRatio = ratioFromMouse(mouse)
                 }
                 onPositionChanged: function(mouse) {
-                  if (pressed) {
+                  if (mouse.buttons & Qt.LeftButton) {
                     previewRatio = ratioFromMouse(mouse)
                   }
                 }
                 onReleased: function(mouse) {
+                  if (mouse.button !== Qt.LeftButton) return
                   var ratio = ratioFromMouse(mouse)
                   root.sendMediaSeek(ratio * root.trackLength)
+                }
+                onClicked: function(mouse) {
+                  if (mouse.button === Qt.RightButton) root.toggleMediaVizMode()
                 }
                 onWheel: function(wheel) { root.toggleMediaVizMode() }
               }
