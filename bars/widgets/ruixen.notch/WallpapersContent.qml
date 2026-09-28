@@ -16,6 +16,16 @@ import Quickshell.Widgets
 // tab genuinely has "space left... like a right panel" (this
 // sidebar's own original request) that the launcher's card doesn't.
 //
+// This file is now ALSO the notch's own Theme switcher (the
+// WALLPAPER SWITCHER / THEME SWITCHER segmented control above the
+// search box -- direct request: "the 2 options will be above the
+// search box, so theme will say search themes..."). That mode is
+// deliberately NOT synced to the launcher copy: the keybind that
+// summons this tab (ruixen.notch toggleWallpapers) is the whole point
+// of the feature, the launcher card stays a pure wallpaper picker, and
+// theme discovery/application (list-themes.sh + omarchy-theme-set)
+// lives entirely in the blocks marked "Theme mode" below.
+//
 // Real wallpaper picker for the notch dashboard's own "Wallpapers" tab,
 // replacing the "coming soon" stub. Reads from the exact same two
 // directories Omarchy's own omarchy-theme-bg-switcher does (confirmed
@@ -147,6 +157,46 @@ Item {
   // useful than having to choose one or the other.
   property string kindFilter: "all"
 
+  // ---- Theme mode ---- (WALLPAPER SWITCHER / THEME SWITCHER segmented
+  // control above the search box; see the header comment for why this
+  // is notch-only and not synced to the launcher copy).
+  //
+  // Which half of the segmented control is showing: "wallpapers" (the
+  // picker this file has always been) or "themes" (a grid of installed
+  // Omarchy themes; clicking one runs the real omarchy-theme-set, the
+  // same front door Super+Shift+Ctrl+Space's own picker uses -- a
+  // second window onto the same state, not a parallel one, exactly
+  // like this file's wallpaper selection above it).
+  property string mediaMode: "wallpapers"
+
+  // Each entry: { name, display, preview }. name is the theme
+  // directory's basename -- the exact string passed to
+  // omarchy-theme-set (which re-normalizes case/dashes itself).
+  // display is the human-readable label from list-themes.sh's own
+  // title-casing, preview is a representative image path or "" (the
+  // tile renders the name instead). Populated by themeListProc below,
+  // running the same shipped list-themes.sh the test runs.
+  property var themeEntries: []
+
+  // The active theme's directory name, read from the same file
+  // omarchy-theme-set itself writes (~/.local/state/omarchy/current/
+  // theme.name) -- drives the CURRENT highlight, same role
+  // currentBackground plays for wallpaper tiles. Applied optimistically
+  // on click, then confirmed by the post-set refresh().
+  property string currentTheme: ""
+
+  // Search narrowed against the wallpaper list vs the theme list
+  // depending on which mode the segmented control is in -- one
+  // searchInput serves both, only the placeholder text differs.
+  readonly property var filteredThemes: {
+    if (searchText.length === 0) return themeEntries
+    var needle = searchText.toLowerCase()
+    return themeEntries.filter(function(entry) {
+      return entry.name.toLowerCase().indexOf(needle) !== -1 ||
+             entry.display.toLowerCase().indexOf(needle) !== -1
+    })
+  }
+
   readonly property int imageCount: wallpaperPaths.filter(function(e) { return e.kind === "image" }).length
   readonly property int videoCount: wallpaperPaths.filter(function(e) { return e.kind === "video" }).length
   readonly property int gifCount: wallpaperPaths.filter(function(e) { return e.kind === "gif" }).length
@@ -169,6 +219,26 @@ Item {
   function refresh() {
     if (!listProc.running) listProc.running = true
     if (!currentProc.running) currentProc.running = true
+    // Theme mode's two reads ride the same refresh -- both are cheap
+    // (one find + one cat), and re-reading the theme list on every tab
+    // open is what keeps a just-installed theme from needing a shell
+    // restart to show up. Wallpaper reads re-running in themes mode is
+    // harmless (nothing on this side branches on the results while
+    // they're hidden).
+    if (!themeListProc.running) themeListProc.running = true
+    if (!currentThemeProc.running) currentThemeProc.running = true
+  }
+
+  // Segmented-control click handler. Clearing the search on a mode
+  // switch is deliberate: the two modes filter different lists, so a
+  // needle typed for wallpapers sitting in the box while the theme
+  // grid loads would read as "no themes match" noise the user didn't
+  // ask for.
+  function setMediaMode(mode) {
+    if (root.mediaMode === mode) return
+    root.mediaMode = mode
+    searchInput.text = ""
+    if (mode === "themes") refresh()
   }
 
   onActiveChanged: if (active) refresh()
@@ -242,6 +312,42 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.currentBackground = String(text || "").trim()
+    }
+  }
+
+  // Theme mode -- theme discovery via the same shipped-script pattern
+  // as listProc above (list-themes.sh, a sibling file the test suite
+  // runs too, so the format can't drift). Same StdioCollector +
+  // US-splitting shape listProc uses.
+  Process {
+    id: themeListProc
+    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/ruixen.notch/list-themes.sh"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var lines = String(text || "").split("\n").filter(function(line) { return line.length > 0 })
+        root.themeEntries = lines.map(function(line) {
+          var parts = line.split("\u001f")
+          // preview may legitimately be empty (a theme with no
+          // preview.* and no backgrounds/ -- the tile falls back to
+          // rendering the name), so a missing 3rd field and an empty
+          // one are treated the same way here.
+          return { name: parts[0], display: parts[1], preview: parts[2] !== undefined ? parts[2] : "" }
+        })
+      }
+    }
+  }
+
+  // The active theme's directory name, from the same file
+  // omarchy-theme-set itself writes on every successful set -- nothing
+  // here guesses or caches it across theme changes made outside this
+  // panel (Super+Shift+Ctrl+Space's own picker included).
+  Process {
+    id: currentThemeProc
+    command: ["bash", "-c", "cat \"$HOME/.local/state/omarchy/current/theme.name\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.currentTheme = String(text || "").trim()
     }
   }
 
@@ -323,6 +429,54 @@ Item {
     }
   }
 
+  // Theme mode -- apply a theme. Same front door the stock
+  // Super+Shift+Ctrl+Space picker uses: omarchy-theme-set with the
+  // theme directory's own name (that script re-normalizes case and
+  // dashes itself, so passing the basename it listed under is exactly
+  // right -- no pre-mangling here).
+  //
+  // The whitelist check is this repo's own fixed-argv rule for
+  // anything that reaches a process argument from outside (here: a
+  // filename on disk -- a theme directory name containing anything
+  // beyond letters/digits/dash/underscore is not something
+  // omarchy-theme-set would accept anyway, so skipping the click
+  // beats letting the CLI's own error be the only line of defense).
+  //
+  // Stopping any playing video/gif first, with a fresh generation:
+  // omarchy-theme-set is about to point current/background at the new
+  // theme's own image, and ruixen.wallpaper's 1s poll would eventually
+  // stop the overlay on its own -- saying so directly, with a
+  // generation this instance minted, keeps the same out-of-order
+  // protection select() has.
+  Process {
+    id: themeStopProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: themeSetProc
+    // omarchy-theme-set runs its post-theme hooks to completion
+    // (terminal/editor/app retints, seconds, not ms) -- all this
+    // process does is wait for it off the UI thread, then one refresh
+    // re-reads wallpapers/current background/theme name so every tile
+    // state on BOTH sides of the segmented control matches the new
+    // theme without a tab close/reopen.
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.refresh()
+    }
+  }
+
+  function applyTheme(entry) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(entry.name)) return
+    root.currentTheme = entry.name
+    root.selectGeneration += 1
+    themeStopProc.command = ["omarchy-shell", "ruixen.wallpaper", "stop", String(root.selectGeneration)]
+    themeStopProc.running = true
+    themeSetProc.command = ["omarchy-theme-set", entry.name]
+    themeSetProc.running = true
+  }
+
   // Outer ColumnLayout -- direct follow-up ("put the right panel
   // below the search bar so keep search like before full"): the
   // search bar moved back out to span the FULL panel width again (it
@@ -333,6 +487,57 @@ Item {
   ColumnLayout {
     anchors.fill: parent
     spacing: 10
+
+    // WALLPAPER SWITCHER / THEME SWITCHER segmented control -- the
+    // first thing in the tab, above the search box, per direct request
+    // ("when the tab opens on top there should 2 options on top ...
+    // the 2 options will be above the search box"). Two equal halves
+    // spanning the full panel width, styled after this sidebar's own
+    // filter chips (same radius/border/selected-accent recipe this
+    // plugin already uses -- plain QML primitives, no qs.Ui) rather
+    // than any new control shape. Selected half lights its border and
+    // label in the accent; switching clears the shared search box (see
+    // setMediaMode's own comment) and swaps the grid below.
+    RowLayout {
+      Layout.fillWidth: true
+      Layout.maximumWidth: Number.POSITIVE_INFINITY
+      spacing: 8
+
+      Repeater {
+        model: [
+          { mode: "wallpapers", label: "WALLPAPER SWITCHER" },
+          { mode: "themes", label: "THEME SWITCHER" }
+        ]
+
+        Rectangle {
+          id: modeChip
+          required property var modelData
+          readonly property bool selected: root.mediaMode === modeChip.modelData.mode
+
+          Layout.fillWidth: true
+          Layout.preferredHeight: 32
+          radius: 10
+          color: modeChip.selected ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
+          border.width: 1
+          border.color: modeChip.selected ? root.accent : Qt.rgba(1, 1, 1, 0.12)
+
+          Text {
+            anchors.centerIn: parent
+            text: modeChip.modelData.label
+            font.family: root.fontFamily
+            font.pixelSize: 10
+            font.weight: modeChip.selected ? Font.DemiBold : Font.Normal
+            color: modeChip.selected ? root.accent : root.muted
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.setMediaMode(modeChip.modelData.mode)
+          }
+        }
+      }
+    }
 
     // Search row -- plain TextInput + placeholder overlay, matching
     // this plugin's existing self-contained style (no qs.Ui.TextField
@@ -363,7 +568,9 @@ Item {
 
         Text {
           anchors.verticalCenter: parent.verticalCenter
-          text: "Search wallpapers..."
+          // Placeholder follows the segmented control -- direct
+          // request: "so theme will say search themes...".
+          text: root.mediaMode === "themes" ? "Search themes..." : "Search wallpapers..."
           color: root.muted
           font.family: root.fontFamily
           font.pixelSize: 12
@@ -414,6 +621,11 @@ Item {
     // exist) -- that's the "space left" the sidebar fills instead of
     // leaving it empty.
     RowLayout {
+      // Wallpaper mode only -- in theme mode the whole grid+sidebar
+      // block below the search bar steps aside for themeGrid ( layouts
+      // skip invisible children, so it yields its height to the theme
+      // grid with no extra geometry work).
+      visible: root.mediaMode === "wallpapers"
       // Layout.maximumWidth freed for the same reason as the sidebar's
       // own comment below -- a nested RowLayout/ColumnLayout's
       // maximumWidth defaults to its own implicitWidth (here, the
@@ -821,6 +1033,182 @@ Item {
 
     Item { Layout.fillHeight: true }
   }
+  }
+
+  // ---- Theme mode content ---- sits as a sibling of the wallpaper
+  // block above (each side visible only in its own mediaMode), so the
+  // wallpaper side's carefully-tuned fixed widths and sidebar layout
+  // are never disturbed by the theme side's presence.
+  Item {
+    id: themeGridWrap
+    Layout.fillWidth: true
+    Layout.maximumWidth: Number.POSITIVE_INFINITY
+    Layout.fillHeight: true
+    visible: root.mediaMode === "themes" && root.filteredThemes.length > 0
+
+    GridView {
+      id: themeGrid
+      // Exactly as wide as the columns it renders, centered in the
+      // wrapper -- flooring the cell math can leave a few dozen px of
+      // dead strip on the right (a real screenshot showed ~40px at the
+      // panel's width), so instead the grid owns only its used width
+      // and the small remainder splits evenly left/right (direct
+      // request: "fill that space on the right ... or center the theme
+      // grid to create equal space on right and left"). The sizing
+      // source is the WRAPPER's width, not the grid's own -- binding
+      // width -> columns -> width would be the circular kind.
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: themeGrid.columns * (themeGrid.tileWidth + 10)
+      height: parent.height
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      reuseItems: true
+      // Fit as many 170px-minimum columns as the real width allows,
+      // then stretch each cell to consume the row (at the panel's
+      // ~790px that turns 4x170+110-dead into 4x~190 with the ~30px
+      // remainder split around the centered grid). The 10px right/
+      // bottom gap per cell -- the same rhythm the wallpaper grid's
+      // 170/110 cells produce -- is kept by construction (cell = tile
+      // + 10), so the tiles themselves grow (~160 -> ~180) rather than
+      // the gaps ballooning. Floor, not round, on the cell math: a
+      // fractional cellWidth would make GridView round cell origins
+      // independently and visibly tear the grid rhythm column to
+      // column.
+      readonly property int columns: Math.max(1, Math.floor((themeGridWrap.width + 10) / 170))
+      readonly property int tileWidth: Math.max(160, Math.floor((themeGridWrap.width - 10 * (columns - 1)) / columns) - 10)
+      cellWidth: themeGrid.tileWidth + 10
+      cellHeight: Math.round(themeGrid.tileWidth * 100 / 160) + 10
+      model: root.filteredThemes
+
+    delegate: Item {
+      id: themeTile
+      required property var modelData
+      readonly property bool hovered: themeTileMouse.containsMouse
+      // Directory-name equality against the value read from
+      // omarchy-theme-set's own theme.name file (kept current
+      // optimistically on click, confirmed on the post-set refresh).
+      readonly property bool active: themeTile.modelData.name === root.currentTheme
+
+      // Fills its cell minus the 10px gap, aspect locked to the
+      // wallpaper tiles' 160x100 so both sides of the segmented
+      // control read as one surface.
+      width: themeGrid.tileWidth
+      height: Math.round(themeGrid.tileWidth * 100 / 160)
+
+      // Image container -- the same static, never-animated container
+      // recipe the wallpaper tiles use (see that block's structural
+      // rewrite comment for why nothing here may animate geometry).
+      // A theme with no preview at all gets a plain quiet tile with
+      // its name instead of a broken image.
+      ClippingRectangle {
+        anchors.fill: parent
+        radius: 10
+        color: Qt.rgba(1, 1, 1, 0.06)
+        visible: themeTile.modelData.preview === ""
+
+        Text {
+          anchors.centerIn: parent
+          width: parent.width - 12
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideRight
+          textFormat: Text.PlainText
+          text: themeTile.modelData.display
+          color: themeTile.active ? root.accent : root.muted
+          font.family: root.fontFamily
+          font.pixelSize: 11
+        }
+      }
+
+      ClippingRectangle {
+        anchors.fill: parent
+        radius: 10
+        color: "transparent"
+        visible: themeTile.modelData.preview !== ""
+
+        Image {
+          anchors.fill: parent
+          source: themeTile.modelData.preview !== "" ? ("file://" + themeTile.modelData.preview) : ""
+          fillMode: Image.PreserveAspectCrop
+          asynchronous: true
+          // Track the tile's real size -- cells stretch to fill the row
+          // (see themeGrid.columns above), and a fixed 160x100 decode
+          // size would blur once the tile renders larger than that.
+          sourceSize: Qt.size(themeTile.width, themeTile.height)
+        }
+      }
+
+      // Hover decoration -- the wallpaper tiles' exact two-band recipe
+      // (accent ring at the edge, black band starting where the ring
+      // ends), copied rather than reinvented.
+      Rectangle {
+        anchors.fill: parent
+        radius: 10
+        color: "transparent"
+        border.width: 2
+        border.color: root.accent
+        visible: themeTile.hovered
+        z: 2
+
+        Rectangle {
+          anchors.fill: parent
+          anchors.margins: 2
+          radius: 8
+          color: "transparent"
+          border.width: 9
+          border.color: "#000000"
+        }
+      }
+
+      // Name label -- hover-only like the wallpaper tiles' own label,
+      // CURRENT in the accent for the applied theme.
+      Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 5
+        height: 26
+        color: Qt.rgba(0, 0, 0, 0.82)
+        visible: themeTile.hovered
+        z: 3
+
+        Text {
+          anchors.centerIn: parent
+          width: parent.width - 12
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideRight
+          textFormat: Text.PlainText
+          text: themeTile.active ? "CURRENT" : themeTile.modelData.display
+          color: themeTile.active ? root.accent : root.textColor
+          font.family: root.fontFamily
+          font.pixelSize: 10
+        }
+      }
+
+      MouseArea {
+        id: themeTileMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.applyTheme(themeTile.modelData)
+        z: 4
+      }
+    }
+  }
+  }
+
+  // Theme mode's own empty state -- a sibling of the wallpaper empty
+  // state (which lives inside the wallpaper block above), each visible
+  // only in its own mode.
+  Text {
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    visible: root.mediaMode === "themes" && root.filteredThemes.length === 0
+    horizontalAlignment: Text.AlignHCenter
+    verticalAlignment: Text.AlignVCenter
+    text: root.themeEntries.length === 0 ? "No themes found" : "No themes match “" + root.searchText + "”"
+    color: root.muted
+    font.family: root.fontFamily
+    font.pixelSize: 12
   }
   }
 }
