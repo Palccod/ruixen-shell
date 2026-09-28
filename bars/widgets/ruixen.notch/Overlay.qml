@@ -293,6 +293,7 @@ Item {
 
   property bool hasMedia: false
   property bool isPlaying: false
+  property bool canSeek: false
   property string title: ""
   property string artist: ""
   property string album: ""
@@ -318,6 +319,7 @@ Item {
     }
     root.hasMedia = parsed.hasMedia === true
     root.isPlaying = parsed.playing === true
+    root.canSeek = parsed.canSeek === true
     root.title = typeof parsed.title === "string" ? parsed.title : ""
     root.artist = typeof parsed.artist === "string" ? parsed.artist : ""
     root.album = typeof parsed.album === "string" ? parsed.album : ""
@@ -348,6 +350,16 @@ Item {
     id: mediaActionProcess
     running: false
     onExited: root.mediaActionPending = false
+  }
+
+  function sendMediaSeek(seconds) {
+    mediaSeekProcess.command = ["omarchy-shell", "ruixen-media", "seek", String(Math.round(seconds))]
+    mediaSeekProcess.running = true
+  }
+
+  Process {
+    id: mediaSeekProcess
+    running: false
   }
 
   // ruixen-shell issue #42/#38: Omarchy v4.0.3 restricts
@@ -2005,7 +2017,7 @@ Item {
 
               // Split point -- where the wave's played portion meets
               // the dim unplayed track, before any gap trim.
-              readonly property real splitX: width * root.progressRatio
+              readonly property real splitX: width * (seekerDragArea.pressed ? seekerDragArea.previewRatio : root.progressRatio)
               // Same gap-around-the-tip design as the player ring/
               // dials/brightness bar, ported here too now that it's
               // right on the other components -- per direct request
@@ -2072,7 +2084,35 @@ Item {
                 x: parent.splitX - width / 2
                 visible: root.hasMedia
 
-                Behavior on x { NumberAnimation { duration: 450 } }
+                Behavior on x {
+                  enabled: !seekerDragArea.pressed
+                  NumberAnimation { duration: 450 }
+                }
+              }
+
+              MouseArea {
+                id: seekerDragArea
+                anchors.fill: parent
+                enabled: root.hasMedia && root.canSeek && root.trackLength > 0
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                property real previewRatio: 0
+                function ratioFromMouse(mouse) {
+                  if (width <= 0) return 0
+                  return Math.max(0, Math.min(1, mouse.x / width))
+                }
+                onPressed: function(mouse) {
+                  previewRatio = ratioFromMouse(mouse)
+                }
+                onPositionChanged: function(mouse) {
+                  if (pressed) {
+                    previewRatio = ratioFromMouse(mouse)
+                  }
+                }
+                onReleased: function(mouse) {
+                  var ratio = ratioFromMouse(mouse)
+                  root.sendMediaSeek(ratio * root.trackLength)
+                }
+                onWheel: function(wheel) { root.toggleMediaVizMode() }
               }
               }
 
@@ -2429,8 +2469,10 @@ Item {
                 themeSurfaceMode: root.frameColorMode === "theme"
                 accentDashboardHeaders: root.barIconTone === "accent"
                 sendMediaAction: root.sendMediaAction
+                sendMediaSeek: root.sendMediaSeek
                 hasMedia: root.hasMedia
                 isPlaying: root.isPlaying
+                canSeek: root.canSeek
                 playIcon: root.playIcon
                 title: root.title
                 artist: root.artist

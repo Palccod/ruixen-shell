@@ -60,6 +60,12 @@ check "statusJson() derives hasMedia fresh from the local p snapshot, not the se
   "$(grep -c 'var mediaFlag = !!(p && (p\.trackTitle || p\.trackArtist))' "$service_qml")" "1"
 check "statusJson()'s hasMedia field uses mediaFlag, not root.hasMedia" \
   "$(grep -c 'hasMedia: mediaFlag,' "$service_qml")" "1"
+check "statusJson() exposes canSeek field" \
+  "$(grep -c 'canSeek: p ? (p\.canSeek === true' "$service_qml")" "1"
+check "Service.qml exposes seekTo method" \
+  "$(grep -c 'function seekTo(seconds, targetKey)' "$service_qml")" "1"
+check "the IpcHandler exposes seek method" \
+  "$(grep -c 'function seek(seconds: real): string' "$service_qml")" "1"
 check "the IpcHandler exposes a parameterized runAction for in-process callers needing showFeedback: false" \
   "$(grep -c 'function runAction(action: string, showFeedback: bool): string' "$service_qml")" "1"
 
@@ -75,6 +81,8 @@ check "Overlay.qml's media state FileView watches for live changes" \
   "$(grep -A4 'id: mediaStateFile' "$overlay_qml" | grep -c 'watchChanges: true')" "1"
 check "Overlay.qml sends media actions through the ruixen-media IPC target, not a live service call" \
   "$(grep -c 'omarchy-shell", "ruixen-media", "runAction"' "$overlay_qml")" "1"
+check "Overlay.qml sends media seek through the ruixen-media IPC target" \
+  "$(grep -c 'omarchy-shell", "ruixen-media", "seek"' "$overlay_qml")" "1"
 check "no leftover activePlayer property (replaced by plain state-fed properties)" \
   "$(grep -c 'property var activePlayer' "$overlay_qml" || true)" "0"
 
@@ -82,6 +90,8 @@ check "no leftover activePlayer property (replaced by plain state-fed properties
 
 check "DashboardContent.qml calls sendMediaAction, not mediaService.runAction" \
   "$(grep -c 'root\.sendMediaAction(' "$dashboard_qml")" "3"
+check "DashboardContent.qml declares sendMediaSeek" \
+  "$(grep -c 'property var sendMediaSeek' "$dashboard_qml")" "1"
 check "no leftover mediaService property on DashboardContent.qml" \
   "$(grep -c 'property var mediaService' "$dashboard_qml" || true)" "0"
 
@@ -96,6 +106,8 @@ check "ruixen.media's own BarWidget.qml reads the same shared state file" \
   "$(grep -c 'media-state\.json' "$media_widget_qml")" "1"
 check "ruixen.media's own BarWidget.qml sends actions through the IPC target too" \
   "$(grep -c 'omarchy-shell", "ruixen-media", "runAction"' "$media_widget_qml")" "1"
+check "ruixen.media's own BarWidget.qml sends seek through the IPC target" \
+  "$(grep -c 'omarchy-shell", "ruixen-media", "seek"' "$media_widget_qml")" "1"
 check "no raw pasted glyph characters anywhere in ruixen.media's own BarWidget.qml" \
   "$(python3 -c "
 print('yes' if any(ord(c) > 0x2000 and c != chr(0x2014) for c in open('$media_widget_qml', encoding='utf-8').read()) else 'no')

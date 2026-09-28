@@ -443,6 +443,16 @@ Item {
     return handled
   }
 
+  function seekTo(seconds, targetKey) {
+    var player = playerForAction("playPause", targetKey) || activePlayer
+    if (!player || !player.canSeek) return false
+    var length = Number(player.length || 0)
+    var pos = Math.max(0, length > 0 ? Math.min(Number(seconds) || 0, length) : (Number(seconds) || 0))
+    player.position = pos
+    root.flushMediaState()
+    return true
+  }
+
   // Recompute play-order reactively instead of polling every 500ms.
   // syncPlayingOrder only depends on the set of players and each player's
   // isPlaying state: onPlayersChanged covers players appearing/disappearing,
@@ -572,7 +582,8 @@ Item {
       // (canTogglePlaying alone isn't always set even when one of these
       // is), see its own MediaModel.js-style canHandleAction checks.
       canPlay: p ? !!p.canPlay : false,
-      canPause: p ? !!p.canPause : false
+      canPause: p ? !!p.canPause : false,
+      canSeek: p ? (p.canSeek === true && p.positionSupported !== false) : false
     })
   }
 
@@ -629,6 +640,10 @@ Item {
     // of that would be redundant.
     function runAction(action: string, showFeedback: bool): string {
       return root.runAction(String(action), showFeedback === true) ? "ok" : "unhandled"
+    }
+
+    function seek(seconds: real): string {
+      return root.seekTo(Number(seconds), "") ? "ok" : "unhandled"
     }
 
     function sourceNext(): string {

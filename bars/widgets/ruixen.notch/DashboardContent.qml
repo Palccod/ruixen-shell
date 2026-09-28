@@ -51,8 +51,10 @@ Item {
   // Omarchy v4.0.3 restricts shell.firstPartyServiceFor() to a fixed
   // allowlist "ruixen.media" was never going to be in).
   property var sendMediaAction: null
+  property var sendMediaSeek: null
   property bool hasMedia: false
   property bool isPlaying: false
+  property bool canSeek: false
   property string playIcon: ""
   property string title: ""
   property string artist: ""
@@ -639,10 +641,52 @@ Item {
             height: 190
 
             CircularSeek {
+              id: circularSeekItem
               anchors.fill: parent
-              value: root.progressRatio
+              value: circularSeekArea.pressed ? circularSeekArea.previewRatio : root.progressRatio
               wavy: root.isPlaying
               ringWidth: 5
+
+              MouseArea {
+                id: circularSeekArea
+                anchors.fill: parent
+                enabled: root.hasMedia && root.canSeek && root.trackLength > 0 && root.sendMediaSeek !== null
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                property real previewRatio: 0
+                function ratioFromMouse(mouse) {
+                  var cx = width / 2
+                  var cy = height / 2
+                  var dx = mouse.x - cx
+                  var dy = mouse.y - cy
+                  var dist = Math.sqrt(dx * dx + dy * dy)
+                  // Ring radius is ~81px (95 - 5 - 9). Accept clicks between 40px and 115px.
+                  if (dist < 40 || dist > 115) return -1
+                  // Atan2: 9 o'clock is -PI, 12 o'clock is -PI/2, 3 o'clock is 0
+                  var angle = Math.atan2(dy, dx)
+                  var ratio = 0
+                  if (angle <= 0) {
+                    ratio = (angle + Math.PI) / Math.PI
+                  } else {
+                    ratio = dx < 0 ? 0 : 1
+                  }
+                  return Math.max(0, Math.min(1, ratio))
+                }
+                onPressed: function(mouse) {
+                  var r = ratioFromMouse(mouse)
+                  if (r >= 0) previewRatio = r
+                }
+                onPositionChanged: function(mouse) {
+                  if (pressed) {
+                    var r = ratioFromMouse(mouse)
+                    if (r >= 0) previewRatio = r
+                  }
+                }
+                onReleased: function(mouse) {
+                  var r = ratioFromMouse(mouse)
+                  var finalRatio = r >= 0 ? r : previewRatio
+                  root.sendMediaSeek(finalRatio * root.trackLength)
+                }
+              }
             }
 
             // ClippingRectangle, not a plain Rectangle -- confirmed the
