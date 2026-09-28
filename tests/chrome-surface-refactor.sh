@@ -28,6 +28,9 @@ check "root stores dock chrome metrics per screen, not as one global scalar" \
 check "root exposes a serial so var-map metric updates notify frame bindings" \
   "$(grep -c 'property int dockChromeMetricsSerial: 0' "$bar_qml")" "1"
 
+check "frame is the single active owner for dock chrome visuals" \
+  "$(grep -c 'readonly property bool frameOwnsDockChrome: true' "$bar_qml")" "1"
+
 check "dock chrome metrics are keyed by the real layer-window screen name" \
   "$(grep -c 'function screenNameForWindow(window)' "$bar_qml")" "1"
 
@@ -35,7 +38,22 @@ check "publishing dock metrics copies the map before replacing one screen entry"
   "$(( $(grep -A18 'function publishDockChromeMetrics' "$bar_qml" | grep -F -c 'var next = {}') + $(grep -A18 'function publishDockChromeMetrics' "$bar_qml" | grep -F -c 'next[existing] = root.dockChromeMetricsByScreen[existing]') + $(grep -A22 'function publishDockChromeMetrics' "$bar_qml" | grep -F -c 'root.dockChromeMetricsByScreen = next') ))" "3"
 
 check "FrameWindow consumes the same per-screen dock metric channel" \
-  "$(( $(grep -A6 'component FrameWindow' "$bar_qml" | grep -c 'dockChromeScreenName: root.screenNameForWindow(frameWindow)') + $(grep -A6 'component FrameWindow' "$bar_qml" | grep -c 'dockChromeSerial: root.dockChromeMetricsSerial') + $(grep -A6 'component FrameWindow' "$bar_qml" | grep -c 'dockChromeMetrics: root.dockChromeMetrics(dockChromeScreenName)') ))" "3"
+  "$(( $(grep -A12 'component FrameWindow' "$bar_qml" | grep -c 'dockChromeScreenName: root.screenNameForWindow(frameWindow)') + $(grep -A12 'component FrameWindow' "$bar_qml" | grep -c 'dockChromeSerial: root.dockChromeMetricsSerial') + $(grep -A12 'component FrameWindow' "$bar_qml" | grep -c 'return root.dockChromeMetrics(dockChromeScreenName)') ))" "3"
+
+check "FrameWindow renders the dock chrome skin from published metrics" \
+  "$(( $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'x: root.frameInset - root.seamOverlap') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'width: frameWindow.dockChromeMetrics.screenWidth + root.seamOverlap') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'readonly property int leftWidth: frameWindow.dockChromeMetrics.leftWidth + dockChrome.overlap') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'readonly property int rightX: frameWindow.dockChromeMetrics.rightX + dockChrome.overlap') ))" "4"
+
+check "FrameWindow dock chrome is painted as one continuous canvas path, not stacked patches" \
+  "$(( $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'function dockPath') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'id: dockChromeFillCanvas') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'ctx.arc(leftEnd') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'ctx.arc(rightStart') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'ctx.quadraticCurveTo(leftEnd') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'ctx.quadraticCurveTo(rightStart') ))" "6"
+
+check "FrameWindow dock chrome path owns overlap and disables frame-touching dock shadow" \
+  "$(( $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c 'readonly property int overlap: root.seamOverlap') + $(grep -A190 'id: dockChrome' "$bar_qml" | grep -c -- '-dockChrome.overlap') + $(grep -A190 'id: dockChromeShadowCanvas' "$bar_qml" | grep -c 'visible: false') ))" "4"
+
+check "old BarPanel dock chrome layers are disabled while frame owns the skin" \
+  "$(( $(grep -A3 'id: leftShoulderShadowClip' "$bar_qml" | grep -c 'visible: !root.frameOwnsDockChrome') + $(grep -A3 'id: rightShoulderShadowClip' "$bar_qml" | grep -c 'visible: !root.frameOwnsDockChrome') + $(grep -A3 'id: dockedShoulderShadow' "$bar_qml" | grep -c 'visible: !root.frameOwnsDockChrome') ))" "3"
+
+check "old BarPanel seam-cover strips are disabled while frame owns dock chrome" \
+  "$(grep -c 'visible: root.docked && root.position === "top" && !root.frameOwnsDockChrome' "$bar_qml")" "3"
 
 check "horizontal dock layout publishes measured left and right extents" \
   "$(( $(grep -A16 'id: horizontalBarRoot' "$bar_qml" | grep -c 'leftWidth: settingsPill.x + settingsPill.width') + $(grep -A16 'id: horizontalBarRoot' "$bar_qml" | grep -c 'rightX: rightDockedBg.x') + $(grep -A16 'id: horizontalBarRoot' "$bar_qml" | grep -c 'rightWidth: horizontalBarRoot.width - rightDockedBg.x') ))" "3"
