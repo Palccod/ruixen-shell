@@ -116,9 +116,34 @@ Item {
   readonly property color notchColor: contentSurfaceFor(resolvedFrameColor)
   readonly property string barSurfaceStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-surface.json"
   readonly property string frameColorStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/frame-appearance.json"
+  readonly property string barIconToneStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-icon-tone.json"
+  property string barIconTone: "mono"
 
   function surfaceLuminance(c) {
     return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+  }
+
+  function normalizeIconTone(tone) {
+    return tone === "accent" ? "accent" : "mono"
+  }
+
+  function loadBarIconTone(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.barIconTone = normalizeIconTone(p && p.tone)
+    } catch (e) {
+      root.barIconTone = "mono"
+    }
+  }
+
+  FileView {
+    id: barIconToneFile
+    path: root.barIconToneStatePath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarIconTone(text())
+    onLoadFailed: root.barIconTone = "mono"
   }
 
   function normalizeSurfaceColorMode(mode) {
@@ -2401,6 +2426,8 @@ Item {
                 muted: root.muted
                 accent: root.accent
                 fontFamily: root.fontFamily
+                themeSurfaceMode: root.frameColorMode === "theme"
+                accentDashboardHeaders: root.barIconTone === "accent"
                 sendMediaAction: root.sendMediaAction
                 hasMedia: root.hasMedia
                 isPlaying: root.isPlaying
