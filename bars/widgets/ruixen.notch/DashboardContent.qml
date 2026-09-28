@@ -254,6 +254,27 @@ Item {
   readonly property real speakerVolume: audioSink && audioSink.audio ? Math.min(1, audioSink.audio.volume) : 0
   readonly property real micVolume: audioSource && audioSource.audio ? Math.min(1, audioSource.audio.volume) : 0
 
+  // Direct live report: "the volume control audio doesnt do anything
+  // when i scroll the dial only mute work". Reading audioSink/
+  // audioSource straight off Pipewire.defaultAudioSink/
+  // defaultAudioSource (above) is enough for the READ side (volume/
+  // muted both display correctly), but Quickshell's own PipeWire
+  // service only keeps a node's writable properties (setAverageVolume,
+  // the actual thing volume: = ... calls under the hood) fully live
+  // for nodes explicitly registered with a PwObjectTracker -- without
+  // one, .audio.volume writes silently don't propagate. .audio.muted's
+  // own toggle happens to still work untracked (a simpler property),
+  // which is exactly why only the dial's click (mute) worked and the
+  // scroll (volume) did nothing. ruixen.launcher/SettingsContent.qml's
+  // own Audio page already tracks its own output/input device lists
+  // this same way -- same fix, just for the two live default-device
+  // properties here instead of a full enumerated list. Filtered for
+  // null since audioSink/audioSource are genuinely absent before
+  // Pipewire finishes enumerating devices at startup.
+  PwObjectTracker {
+    objects: [root.audioSink, root.audioSource].filter(function(n) { return n !== null })
+  }
+
   function formatTime(seconds) {
     var value = Math.max(0, Math.floor(Number(seconds) || 0))
     var minutes = Math.floor(value / 60)
