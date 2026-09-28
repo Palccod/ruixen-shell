@@ -6,7 +6,7 @@
 // actual font, don't guess" standard AppLauncher.qml's own arch glyph
 // comment already holds itself to) -- two candidate glyphs needed a
 // CJK font this repo doesn't ship, so both were dropped rather than
-// risk a tofu box, leaving 111 options.
+// risk a tofu box, leaving 112 options.
 var ICONS = {
   // Distros / OS -- "arch" deliberately keeps THIS repo's own existing
   // 0xF303 (linux-archlinux) rather than a different arch glyph, so
@@ -26,6 +26,7 @@ var ICONS = {
   "plasma": 0xF332, "wayland": 0xF367, "docker": 0xF308,
   // Generic marks
   "grid": 0xEEED, "spark": 0xE6A4, "power": 0xF011, "mark": 0xEE99,
+  "leaf": 0xF06C,
   "nix": 0xF313, "branch": 0xE666, "rebel": 0xF1D0,
   // Dev tools / languages / apps
   "github": 0xE709, "git": 0xE702, "gitlab": 0xE7EB, "python": 0xE73C,

@@ -77,6 +77,8 @@ pinned_widget="$repo_dir/bars/widgets/ruixen.pinnedapps/BarWidget.qml"
 # "no leftover restricted API calls" section above already uses.
 rfiles_search="$repo_dir/ruixen.launcher/FileSearchProvider.qml"
 rcontent_search="$repo_dir/ruixen.launcher/FileContentSearchProvider.qml"
+rlauncher_glyphs="$repo_dir/ruixen.launcher/AppLauncherGlyphs.js"
+bar_applauncher_glyphs="$repo_dir/bars/widgets/ruixen.applauncher/AppLauncherGlyphs.js"
 
 pass=0
 fail_count=0
@@ -121,6 +123,13 @@ check "ruixen.launcher/LauncherSearchConfig.js exists" "$([[ -f "$launcher_searc
 check "ruixen.settings/LauncherSearchConfig.js exists" "$([[ -f "$settings_search_config" ]] && echo yes)" "yes"
 check "the two LauncherSearchConfig.js copies are byte-identical (plugin folders can't share a file)" \
   "$(diff -q "$launcher_search_config" "$settings_search_config" >/dev/null 2>&1 && echo same || echo different)" "same"
+
+check "ruixen.launcher/AppLauncherGlyphs.js exists" "$([[ -f "$rlauncher_glyphs" ]] && echo yes)" "yes"
+check "ruixen.applauncher/AppLauncherGlyphs.js exists" "$([[ -f "$bar_applauncher_glyphs" ]] && echo yes)" "yes"
+check "the two AppLauncherGlyphs.js copies are byte-identical (plugin folders can't share a file)" \
+  "$(diff -q "$rlauncher_glyphs" "$bar_applauncher_glyphs" >/dev/null 2>&1 && echo same || echo different)" "same"
+check "Launcher Mark picker includes nf-fa-leaf" \
+  "$(grep -c '"leaf": 0xF06C' "$rlauncher_glyphs")" "1"
 
 check "ruixen.bar/ThemeColors.qml exists" "$([[ -f "$bar_theme_colors" ]] && echo yes)" "yes"
 check "ruixen.peripherals/ThemeColors.qml exists" "$([[ -f "$peripherals_theme_colors" ]] && echo yes)" "yes"

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Static UI contract for the notch wallpaper sidebar. The picker logic
+# itself is covered by wallpaper-discovery-format.sh; this pins the
+# small Accent/Secondary color treatment on the right-side stat cards.
+set -Eeuo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_dir="$(cd -- "$script_dir/.." && pwd)"
+wallpapers_qml="$repo_dir/bars/widgets/ruixen.notch/WallpapersContent.qml"
+overlay_qml="$repo_dir/bars/widgets/ruixen.notch/Overlay.qml"
+
+pass=0
+fail_count=0
+check() {
+  local desc="$1" got="$2" want="$3"
+  if [[ "$got" == "$want" ]]; then
+    printf 'ok   - %s\n' "$desc"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL - %s\n       got:  %s\n       want: %s\n' "$desc" "$got" "$want"
+    fail_count=$((fail_count + 1))
+  fi
+}
+
+check "WallpapersContent exposes a secondary color token for sidebar accents" \
+  "$(grep -c 'property color secondary: accent' "$wallpapers_qml")" "1"
+check "Overlay reads the active theme's secondary color" \
+  "$(grep -c 'themeSecondaryColor = root.parseCavaThemeColor(t, "secondary", Color.accent)' "$overlay_qml")" "1"
+check "Overlay passes theme secondary into WallpapersContent" \
+  "$(grep -A8 'WallpapersContent {' "$overlay_qml" | grep -c 'secondary: root.themeSecondaryColor')" "1"
+check "wallpaper image/video/gif counts are always accent-colored" \
+  "$(grep -A8 'text: filterChip.modelData.count' "$wallpapers_qml" | grep -c 'color: root.accent')" "1"
+check "back-to-top arrow uses secondary at rest and accent on hover" \
+  "$(grep -A8 'text: "↑"' "$wallpapers_qml" | grep -c 'color: backToTopArea.containsMouse ? root.accent : root.secondary')" "1"
+check "tests/run-all.sh runs this suite" \
+  "$(grep -c 'wallpaper-sidebar-style\.sh' "$script_dir/run-all.sh")" "1"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail_count"
+[[ "$fail_count" -eq 0 ]]

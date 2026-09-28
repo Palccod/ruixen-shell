@@ -3511,7 +3511,7 @@ Item {
   // "Launcher Mark" -- direct request: "allow more glyph as an option
   // in the bars panel setting so user can pick different ones... they
   // call it launcher mark". A grid of every
-  // verified-present glyph (AppLauncherGlyphs.js, 111 options) instead
+  // verified-present glyph (AppLauncherGlyphs.js, 112 options) instead
   // of a segmented control -- SettingsSegmentedItem's own row-of-N-
   // buttons shape doesn't scale past a handful of options the way Bar
   // Layout/Notch above use it.

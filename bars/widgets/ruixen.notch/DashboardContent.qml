@@ -39,8 +39,10 @@ Item {
   readonly property color accentForeground: "#000000"
   readonly property color dashboardHeaderText: accentDashboardHeaders ? accent : textColor
   readonly property color dashboardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.05) : Qt.rgba(1, 1, 1, 0.05)
+  readonly property color dashboardBoardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.06) : dashboardSurface
   readonly property color dashboardSurfaceRaised: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.08) : Qt.rgba(1, 1, 1, 0.08)
   readonly property color dashboardSurfaceStrong: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.075) : "#000000"
+  readonly property color dashboardCardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.035) : dashboardSurfaceStrong
   readonly property color dashboardBorder: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.12) : Qt.rgba(1, 1, 1, 0.14)
 
   // Media passthrough -- reads the same root-level properties Overlay.qml
@@ -274,9 +276,11 @@ Item {
 
   // Quick-control toggle button -- accent-filled with black text/glyph
   // when on (same "primary" treatment the calendar's today-cell and the
-  // active tab already use), grey tonal when off. The agent glyph is the
-  // one exception left non-interactive (see below) -- active always
-  // false, no onActivated wired.
+  // active tab already use), grey tonal when off. In Accent icon-tone
+  // mode the inactive glyphs still use the theme accent; Mono keeps the
+  // old plain text color. The agent glyph is the one exception left
+  // non-interactive (see below) -- active always false, no onActivated
+  // wired.
   component QuickToggle: Rectangle {
     id: qt
     property string glyph: ""
@@ -293,7 +297,7 @@ Item {
     Text {
       anchors.centerIn: parent
       text: qt.glyph
-      color: qt.active ? root.accentForeground : root.textColor
+      color: qt.active ? root.accentForeground : (root.accentDashboardHeaders ? root.accent : root.textColor)
       font.family: root.fontFamily
       font.pixelSize: qt.size * 0.4
     }
@@ -311,7 +315,7 @@ Item {
   // black+border look above.
   component PaneFilled: Rectangle {
     radius: 10
-    color: root.dashboardSurface
+    color: root.dashboardBoardSurface
     clip: true
   }
 
@@ -786,7 +790,7 @@ Item {
           Text {
             Layout.fillWidth: true
             text: root.hasMedia ? root.title : "Nothing Playing"
-            color: root.textColor
+            color: root.accentDashboardHeaders ? root.accent : root.textColor
             font.family: root.fontFamily
             font.pixelSize: 12
             font.bold: true
@@ -798,7 +802,7 @@ Item {
             Layout.fillWidth: true
             visible: root.hasMedia ? root.album !== "" : true
             text: root.hasMedia ? root.album : "Enjoy the Silence"
-            color: root.muted
+            color: root.accentDashboardHeaders ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.72) : root.muted
             font.family: root.fontFamily
             font.pixelSize: 10
             horizontalAlignment: Text.AlignHCenter
@@ -809,7 +813,7 @@ Item {
             Layout.fillWidth: true
             visible: root.hasMedia ? root.artist !== "" : true
             text: root.hasMedia ? root.artist : root.brailleSpinner
-            color: root.muted
+            color: root.accentDashboardHeaders ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.62) : root.muted
             font.family: root.fontFamily
             font.pixelSize: 10
             horizontalAlignment: Text.AlignHCenter
@@ -835,7 +839,7 @@ Item {
           Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "\udb81\udcae"
-            color: root.textColor
+            color: root.accentDashboardHeaders ? root.accent : root.textColor
             font.family: root.fontFamily
             font.pixelSize: 18
             MouseArea {
@@ -885,7 +889,7 @@ Item {
           Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "\udb81\udcad"
-            color: root.textColor
+            color: root.accentDashboardHeaders ? root.accent : root.textColor
             font.family: root.fontFamily
             font.pixelSize: 18
             MouseArea {
@@ -908,7 +912,7 @@ Item {
           text: root.hasMedia
             ? (root.formatTime(root.trackPosition) + " / " + root.formatTime(root.trackLength))
             : "--:-- / --:--"
-          color: root.muted
+          color: root.accentDashboardHeaders ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.62) : root.muted
           font.family: root.fontFamily
           font.pixelSize: 9
         }
@@ -1002,7 +1006,7 @@ Item {
         Layout.fillWidth: true
         Layout.fillHeight: true
         radius: 10
-        color: root.dashboardSurfaceRaised
+        color: root.dashboardBoardSurface
         clip: true
 
         property int monthShift: 0
@@ -1195,10 +1199,7 @@ Item {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
                     text: modelData
-                    // Today's own weekday letter reads brighter (full
-                    // textColor) than the rest (muted/dim), per direct
-                    // request.
-                    color: index === calendarPane.currentDayOfWeek ? root.textColor : root.muted
+                    color: root.accentDashboardHeaders ? root.accent : (index === calendarPane.currentDayOfWeek ? root.textColor : root.muted)
                     font.family: root.fontFamily
                     // Bumped back up a touch (10px -> 12px) -- the
                     // 230px day-grid shrink left it ending a bit early
@@ -1258,7 +1259,7 @@ Item {
                           Text {
                             anchors.centerIn: parent
                             text: parent.parent.modelData.day
-                            color: parent.parent.modelData.isToday ? root.accentForeground : (parent.parent.modelData.inMonth ? root.textColor : root.muted)
+                            color: parent.parent.modelData.isToday ? root.accentForeground : (parent.parent.modelData.inMonth ? (root.accentDashboardHeaders ? root.accent : root.textColor) : root.muted)
                             font.family: root.fontFamily
                             font.pixelSize: 10
                           }
@@ -1432,7 +1433,7 @@ Item {
           // the one that gives way. No longer tints the row itself on
           // hover at all -- an earlier pass looked "too compact" and
           // had "a new alignment on its own" for the dismiss control.
-          delegate: Rectangle {
+          delegate: Item {
             id: notificationRow
             required property var modelData
             // Computed directly from modelData (a plain string
@@ -1465,8 +1466,30 @@ Item {
             // matching calendarPane's own (10, a few hundred lines up
             // in this same file) rather than a literal stadium/pill,
             // leaves the text margins genuinely clear.
-            radius: 10
-            color: root.dashboardSurfaceStrong
+            Rectangle {
+              id: notificationRowBase
+              anchors.fill: parent
+              radius: 10
+              color: root.dashboardCardSurface
+              layer.enabled: root.themeSurfaceMode
+              layer.smooth: true
+              layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: "#000000"
+                shadowOpacity: 0.38
+                shadowBlur: 0.22
+                shadowHorizontalOffset: 0
+                shadowVerticalOffset: 3
+              }
+            }
+
+            Rectangle {
+              id: notificationRowChrome
+              anchors.fill: parent
+              radius: notificationRowBase.radius
+              color: root.dashboardCardSurface
+            }
+
             // Direct follow-up chain: image made edge-to-edge with a
             // plain clip (previous commit) left the top two corners
             // visibly squared where the image sits flush against them
@@ -1677,17 +1700,10 @@ Item {
               onClicked: if (root.notificationHistory) root.notificationHistory.forgetOne(notificationRow.modelData.key)
             }
 
-            // A frame around the whole card, thumbnail included -- a
-            // border on notificationRow itself paints as part of its own
-            // background, before any children, so the thumbnail (flush
-            // against the same top/left/right edges) would draw over it;
-            // this overlay is declared last instead, on top of
-            // everything. Per-corner radius properties, matching
-            // notificationThumbnailMask exactly, rather than the plain
-            // `radius` shorthand -- the two take different rendering
-            // paths and rasterize their corner curves slightly
-            // differently, which showed up as visible artifacts right
-            // where this frame's top corners overlapped the mask's own.
+            // Dark/black mode keeps the old frame; theme-surface mode
+            // drops it and relies on the base card's shadow for depth.
+            // The frame remains an overlay, not a border on the base,
+            // so thumbnails cannot paint over it in the dark path.
             Rectangle {
               anchors.fill: parent
               topLeftRadius: 10
@@ -1696,6 +1712,7 @@ Item {
               bottomRightRadius: 10
               antialiasing: true
               color: "transparent"
+              visible: !root.themeSurfaceMode
               border.color: root.dashboardSurfaceStrong
               border.width: 1.5
             }
@@ -1707,12 +1724,25 @@ Item {
           Layout.fillHeight: true
           visible: notificationList.count === 0
 
-          Text {
+          Column {
             anchors.centerIn: parent
-            text: "No notifications"
-            color: root.muted
-            font.family: root.fontFamily
-            font.pixelSize: 10
+            spacing: 8
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "\udb80\udf2a"
+              color: root.accentDashboardHeaders ? root.accent : root.muted
+              font.family: root.fontFamily
+              font.pixelSize: 42
+            }
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "No notifications"
+              color: root.muted
+              font.family: root.fontFamily
+              font.pixelSize: 10
+            }
           }
         }
       }
@@ -1892,7 +1922,7 @@ Item {
           // Same fixed red used for DND-active elsewhere in this file
           // (#e05252) -- a semantic "muted/off" color, not theme-linked,
           // same reasoning as the bell's own red.
-          color: dialRoot.muted ? "#e05252" : root.textColor
+          color: dialRoot.muted ? "#e05252" : (root.accentDashboardHeaders ? root.accent : root.textColor)
           font.family: root.fontFamily
           // Matches the left-rail tab bar's own glyph size (20px,
           // bumped alongside it from 18) -- was 14 originally, read
@@ -1942,7 +1972,7 @@ Item {
         Text {
           anchors.centerIn: parent
           text: "\udb80\udcdf"
-          color: root.textColor
+          color: root.accentDashboardHeaders ? root.accent : root.textColor
           font.family: root.fontFamily
           font.pixelSize: 20
         }

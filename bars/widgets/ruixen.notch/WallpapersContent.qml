@@ -61,6 +61,7 @@ Item {
   property color textColor: "#ffffff"
   property color muted: Qt.rgba(1, 1, 1, 0.5)
   property color accent: "#3ecf5b"
+  property color secondary: accent
   property string fontFamily: "JetBrainsMono Nerd Font"
 
   // Only visible/active while the tab itself is on screen -- refresh()
@@ -740,7 +741,7 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: 18
             font.weight: Font.DemiBold
-            color: filterChip.selected ? root.accent : root.textColor
+            color: root.accent
           }
 
           Text {
@@ -797,7 +798,7 @@ Item {
           font.family: root.fontFamily
           font.pixelSize: 18
           font.weight: Font.DemiBold
-          color: backToTopArea.containsMouse ? root.accent : root.textColor
+          color: backToTopArea.containsMouse ? root.accent : root.secondary
         }
 
         Text {

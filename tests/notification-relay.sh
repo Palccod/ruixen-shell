@@ -108,5 +108,50 @@ check "the recurring sweep is gated on storeLoaded (not spawning processes befor
 check "no leftover doNotDisturb property on NotificationService.qml (DND now lives on Overlay.qml alone)" \
   "$(grep -c 'property.*doNotDisturb\|readonly property bool doNotDisturb' "$service_qml" || true)" "0"
 
+# --- notification row chrome -------------------------------------------
+
+check "DashboardContent.qml renders notification rows through a separate borderless base" \
+  "$(grep -c 'id: notificationRowBase' "$dashboard_qml")" "1"
+check "DashboardContent.qml gives notification rows the same foreground chrome layer as Kanban cards" \
+  "$(grep -c 'id: notificationRowChrome' "$dashboard_qml")" "1"
+check "notification row base only enables its drop shadow in theme-surface mode" \
+  "$(grep -A8 'id: notificationRowBase' "$dashboard_qml" | grep -c 'layer.enabled: root.themeSurfaceMode')" "1"
+check "notification row base shadow uses the same raised-card treatment as Kanban cards" \
+  "$(grep -A18 'id: notificationRowBase' "$dashboard_qml" | grep -c 'shadowOpacity: 0.38')" "1"
+check "notification row foreground chrome uses the same surface token as the shadow base" \
+  "$(grep -A5 'id: notificationRowChrome' "$dashboard_qml" | grep -c 'color: root.dashboardCardSurface')" "1"
+check "notification row frame is hidden in theme-surface mode instead of drawing a thick border" \
+  "$(grep -A14 'Dark/black mode keeps the old frame' "$dashboard_qml" | grep -c 'visible: !root.themeSurfaceMode')" "1"
+check "theme-mode dashboard section panels match Kanban board surface strength" \
+  "$(grep -c 'dashboardBoardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.06)' "$dashboard_qml")" "1"
+check "theme-mode notification bubbles match Kanban card surface strength" \
+  "$(grep -c 'dashboardCardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.035)' "$dashboard_qml")" "1"
+check "notification outer panel uses the Kanban-matched board surface" \
+  "$(grep -A4 'component PaneFilled' "$dashboard_qml" | grep -c 'color: root.dashboardBoardSurface')" "1"
+check "calendar outer panel uses the Kanban-matched board surface" \
+  "$(grep -A8 'id: calendarPane' "$dashboard_qml" | grep -c 'color: root.dashboardBoardSurface')" "1"
+check "Accent icon-tone makes inactive quick-control glyphs accent-colored" \
+  "$(grep -c 'qt.active ? root.accentForeground : (root.accentDashboardHeaders ? root.accent : root.textColor)' "$dashboard_qml")" "1"
+check "Accent icon-tone makes calendar weekday labels accent-colored" \
+  "$(grep -c 'root.accentDashboardHeaders ? root.accent : (index === calendarPane.currentDayOfWeek ? root.textColor : root.muted)' "$dashboard_qml")" "1"
+check "Accent icon-tone makes in-month calendar dates accent-colored while today stays inverted" \
+  "$(grep -c 'parent.parent.modelData.isToday ? root.accentForeground : (parent.parent.modelData.inMonth ? (root.accentDashboardHeaders ? root.accent : root.textColor) : root.muted)' "$dashboard_qml")" "1"
+check "Accent icon-tone makes unmuted audio and mic dial glyphs accent-colored" \
+  "$(grep -c 'dialRoot.muted ? "#e05252" : (root.accentDashboardHeaders ? root.accent : root.textColor)' "$dashboard_qml")" "1"
+check "Accent icon-tone makes the brightness glyph accent-colored" \
+  "$(grep -A3 'text: "\\udb80\\udcdf"' "$dashboard_qml" | grep -c 'color: root.accentDashboardHeaders ? root.accent : root.textColor')" "1"
+check "Accent icon-tone makes player title and prev/next glyphs accent-colored" \
+  "$(grep -c 'color: root.accentDashboardHeaders ? root.accent : root.textColor' "$dashboard_qml")" "4"
+check "Accent icon-tone makes the player album row accent-muted" \
+  "$(grep -c 'Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.72)' "$dashboard_qml")" "1"
+check "Accent icon-tone makes player artist and duration rows accent-muted" \
+  "$(grep -c 'Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.62)' "$dashboard_qml")" "2"
+check "empty notification state shows a large centered icon above the label" \
+  "$(grep -A14 'visible: notificationList.count === 0' "$dashboard_qml" | grep -c 'font.pixelSize: 42')" "1"
+check "empty notification state uses the plain leaf glyph" \
+  "$(grep -A10 'visible: notificationList.count === 0' "$dashboard_qml" | grep -c 'text: "\\udb80\\udf2a"')" "1"
+check "empty notification icon follows Accent icon-tone" \
+  "$(grep -A14 'visible: notificationList.count === 0' "$dashboard_qml" | grep -c 'color: root.accentDashboardHeaders ? root.accent : root.muted')" "1"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail_count"
 [[ "$fail_count" -eq 0 ]]

@@ -72,7 +72,7 @@ BarWidget {
     // repo -- confirmed present in JetBrainsMonoNerdFont's own cmap
     // directly, not guessed.
     //
-    // Now one of 111 configurable options ("Launcher Mark" on the Bar
+    // Now one of 112 configurable options ("Launcher Mark" on the Bar
     // settings page, root.iconId above) instead of a fixed glyph --
     // direct request. Every option went through the exact same "is it
     // actually in this repo's own font" check this one originally did

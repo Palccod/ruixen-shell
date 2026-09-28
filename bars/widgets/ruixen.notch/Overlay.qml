@@ -675,6 +675,7 @@ Item {
   property color kanbanSuccessColor: Color.accent
   property color kanbanDangerColor: Color.accent
   property color kanbanWarningColor: Color.accent
+  property color themeSecondaryColor: Color.accent
 
   function parseCavaThemeColor(raw, key, fallback) {
     var m = String(raw || "").match(new RegExp("^\\s*" + key + "\\s*=\\s*[\"']?(#[0-9A-Fa-f]{6})", "m"))
@@ -694,6 +695,7 @@ Item {
       root.kanbanSuccessColor = root.parseCavaThemeColor(t, "green", Color.accent)
       root.kanbanDangerColor = root.parseCavaThemeColor(t, "red", Color.accent)
       root.kanbanWarningColor = root.parseCavaThemeColor(t, "yellow", Color.accent)
+      root.themeSecondaryColor = root.parseCavaThemeColor(t, "secondary", Color.accent)
     }
     // Same one-shot retry ruixen.cava/Overlay.qml's own themeColorsFile
     // already uses -- a theme switch replaces this file via an atomic
@@ -707,6 +709,7 @@ Item {
       root.kanbanSuccessColor = Color.accent
       root.kanbanDangerColor = Color.accent
       root.kanbanWarningColor = Color.accent
+      root.themeSecondaryColor = Color.accent
       cavaThemeColorsRetryTimer.restart()
     }
   }
@@ -2571,6 +2574,7 @@ Item {
                 textColor: root.textColor
                 muted: root.muted
                 accent: root.accent
+                secondary: root.themeSecondaryColor
                 fontFamily: root.fontFamily
               }
 

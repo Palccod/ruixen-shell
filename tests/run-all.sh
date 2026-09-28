@@ -35,6 +35,7 @@ suites=(
   "$script_dir/install-theme-overlays.sh"
   "$script_dir/lifecycle-lock.sh"
   "$script_dir/wallpaper-discovery-format.sh"
+  "$script_dir/wallpaper-sidebar-style.sh"
   "$script_dir/update-safety.sh"
   "$script_dir/gif-poster-fallback.sh"
   "$script_dir/poster-cache-pruning.sh"
