@@ -93,6 +93,13 @@ Item {
   readonly property color floatingPillFill: surfaceFillForMaterial(floatingPillSurface, floatingSurfaceMaterial)
   readonly property real floatingPillSurfaceLuminance: surfaceLuminance(floatingPillSurface)
   readonly property real themeForegroundLuminance: surfaceLuminance(themeForeground)
+  // Dock chrome refactor bridge: BarPanel owns widget layout, FrameWindow
+  // should eventually own the visual chrome. Publish measured geometry per
+  // screen first so the frame can consume it without guessing pill widths.
+  property var dockChromeMetricsByScreen: ({})
+  property int dockChromeMetricsSerial: 0
+  readonly property bool frameOwnsDockChrome: true
+  readonly property bool integratedTopDockSurface: docked && position === "top"
 
   function surfaceLuminance(c) {
     return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
@@ -117,6 +124,39 @@ Item {
 
   function contentSurfaceFor(surface) {
     return root.surfaceLuminance(surface) > 0.5 ? root.surfaceBlack : surface
+  }
+
+  function screenNameForWindow(window) {
+    return window && window.screen ? String(window.screen.name || "") : ""
+  }
+
+  function publishDockChromeMetrics(screenName, metrics) {
+    var key = String(screenName || "")
+    if (!key || !metrics) return
+
+    var next = {}
+    for (var existing in root.dockChromeMetricsByScreen)
+      next[existing] = root.dockChromeMetricsByScreen[existing]
+    next[key] = {
+      screenWidth: Math.max(0, Math.round(metrics.screenWidth || 0)),
+      barHeight: Math.max(0, Math.round(metrics.barHeight || 0)),
+      leftWidth: Math.max(0, Math.round(metrics.leftWidth || 0)),
+      rightX: Math.max(0, Math.round(metrics.rightX || 0)),
+      rightWidth: Math.max(0, Math.round(metrics.rightWidth || 0))
+    }
+    root.dockChromeMetricsByScreen = next
+    root.dockChromeMetricsSerial += 1
+  }
+
+  function dockChromeMetrics(screenName) {
+    var key = String(screenName || "")
+    return root.dockChromeMetricsByScreen[key] || {
+      screenWidth: 0,
+      barHeight: root.barSize,
+      leftWidth: 0,
+      rightX: 0,
+      rightWidth: 0
+    }
   }
 
   // themeForeground itself is left theme-following since it also feeds
@@ -1770,6 +1810,12 @@ Item {
   // though these are two separate surfaces again.
   component FrameWindow: PanelWindow {
     id: frameWindow
+    readonly property string dockChromeScreenName: root.screenNameForWindow(frameWindow)
+    readonly property int dockChromeSerial: root.dockChromeMetricsSerial
+    readonly property var dockChromeMetrics: {
+      dockChromeSerial
+      return root.dockChromeMetrics(dockChromeScreenName)
+    }
 
     visible: true
     exclusionMode: ExclusionMode.Ignore
@@ -1836,8 +1882,9 @@ Item {
         ctx.fillStyle = root.frameColor
         ctx.fillRect(0, 0, width, height)
         ctx.globalCompositeOperation = "destination-out"
-        roundedRect(ctx, root.frameInset, root.frameInset,
-          width - root.frameInset * 2, height - root.frameInset * 2,
+        const holeY = root.frameInset
+        roundedRect(ctx, root.frameInset, holeY,
+          width - root.frameInset * 2, height - holeY - root.frameInset,
           frameCornerRadius)
         // Old, since-reverted: a second notch-shaped hole punched here
         // too, so this canvas's own paint would show through ruixen.notch's
@@ -1956,8 +2003,9 @@ Item {
         // are untouched.
         const topRadius = (root.docked && root.position === "top") ? 0 : frameCornerRadius
         ctx.save()
-        roundedRectCorners(ctx, root.frameInset, root.frameInset,
-          width - root.frameInset * 2, height - root.frameInset * 2,
+        const holeY = root.frameInset
+        roundedRectCorners(ctx, root.frameInset, holeY,
+          width - root.frameInset * 2, height - holeY - root.frameInset,
           topRadius, frameCornerRadius)
         ctx.clip()
         ctx.lineWidth = 1
@@ -1977,11 +2025,18 @@ Item {
           var t = 1 - (i / shadowReachPx)
           var alpha = 1.0 * t * t
           if (alpha < 0.004) continue
+          if (root.integratedTopDockSurface) {
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(0, root.frameInset + root.barSize, width, height - root.frameInset - root.barSize)
+            ctx.clip()
+          }
           ctx.strokeStyle = Qt.rgba(0, 0, 0, alpha)
-          roundedRectCorners(ctx, root.frameInset + i, root.frameInset + i,
-            width - (root.frameInset + i) * 2, height - (root.frameInset + i) * 2,
+          roundedRectCorners(ctx, root.frameInset + i, holeY + i,
+            width - (root.frameInset + i) * 2, height - holeY - root.frameInset - i * 2,
             Math.max(0, topRadius - i), Math.max(0, frameCornerRadius - i))
           ctx.stroke()
+          if (root.integratedTopDockSurface) ctx.restore()
         }
         ctx.restore()
         // Notch's own shadow used to live here too (a hand-rolled Canvas
@@ -1995,6 +2050,146 @@ Item {
         // geometry, no hand-derived arc math to get wrong. This canvas
         // keeps its own hole-punch (frameCanvas above) since that part
         // was correct; only the shadow moved back.
+      }
+    }
+
+    // Frame-owned dock skin. BarPanel still owns widget layout/content and
+    // publishes the measured left/right extents, but the visual surface now
+    // lives beside the frame so dock corners and frame corners share one
+    // layer-surface coordinate space.
+    Item {
+      id: dockChrome
+      visible: root.docked && root.position === "top" && frameWindow.dockChromeMetrics.screenWidth > 0
+      x: root.frameInset - root.seamOverlap
+      y: root.frameInset
+      width: frameWindow.dockChromeMetrics.screenWidth + root.seamOverlap * 2
+      height: root.barSize + root.shoulderWingSize
+      readonly property int leftWidth: frameWindow.dockChromeMetrics.leftWidth + dockChrome.overlap
+      readonly property int rightX: frameWindow.dockChromeMetrics.rightX + dockChrome.overlap
+      readonly property int rightWidth: frameWindow.dockChromeMetrics.rightWidth
+      readonly property int overlap: root.seamOverlap
+
+      function dockPath(ctx, dockColor, hemColor) {
+        var frameHemColor = hemColor || dockColor
+        var r = root.shoulderWingSize
+        function wingPath(x, y, corner) {
+          var centerX = corner === "topLeft" || corner === "bottomLeft" ? x + r : x
+          var centerY = corner === "topLeft" || corner === "topRight" ? y + r : y
+          var start = corner === "topLeft" ? Math.PI
+            : corner === "topRight" ? 1.5 * Math.PI
+            : corner === "bottomRight" ? 0
+            : 0.5 * Math.PI
+          var end = corner === "topLeft" ? 1.5 * Math.PI
+            : corner === "topRight" ? 2 * Math.PI
+            : corner === "bottomRight" ? 0.5 * Math.PI
+            : Math.PI
+          var pointX = corner === "topLeft" || corner === "bottomLeft" ? x : x + r
+          var pointY = corner === "topLeft" || corner === "topRight" ? y : y + r
+          ctx.moveTo(pointX, pointY)
+          ctx.arc(centerX, centerY, r, start, end)
+          ctx.lineTo(pointX, pointY)
+          ctx.closePath()
+        }
+
+        ctx.beginPath()
+        var y0 = -dockChrome.overlap
+        var y1 = root.barSize + dockChrome.overlap
+        var x0 = -dockChrome.overlap
+        var leftEnd = root.fullbarStyle ? dockChrome.width + dockChrome.overlap : dockChrome.leftWidth
+        ctx.moveTo(x0, y0)
+        ctx.lineTo(root.fullbarStyle ? leftEnd : leftEnd, y0)
+        if (!root.fullbarStyle) {
+          ctx.lineTo(leftEnd + r, y0)
+          ctx.arc(leftEnd + r, y0 + r, r, 1.5 * Math.PI, Math.PI, true)
+          ctx.lineTo(leftEnd, y1 - r)
+          ctx.quadraticCurveTo(leftEnd, y1, leftEnd - r, y1)
+        } else {
+          ctx.lineTo(leftEnd, y1)
+        }
+        ctx.lineTo(x0, y1)
+        ctx.closePath()
+
+        if (!root.fullbarStyle) {
+          var rightStart = dockChrome.rightX
+          var rightEnd = dockChrome.rightX + dockChrome.rightWidth + dockChrome.overlap
+          ctx.moveTo(rightEnd, y0)
+          ctx.lineTo(rightStart - r, y0)
+          ctx.arc(rightStart - r, y0 + r, r, 1.5 * Math.PI, 0, false)
+          ctx.lineTo(rightStart, y1 - r)
+          ctx.quadraticCurveTo(rightStart, y1, rightStart + r, y1)
+          ctx.lineTo(rightEnd, y1)
+          ctx.closePath()
+        }
+        ctx.fillStyle = dockColor
+        ctx.fill()
+
+        ctx.beginPath()
+        wingPath(0, root.barSize, "topLeft")
+        if (!root.fullbarStyle)
+          wingPath(dockChrome.rightX + dockChrome.rightWidth - r, root.barSize, "topRight")
+        ctx.fillStyle = frameHemColor
+        ctx.fill()
+      }
+
+      Canvas {
+        id: dockChromeShadowCanvas
+        visible: false
+        anchors.fill: parent
+        anchors.margins: -40
+        antialiasing: true
+        onPaint: {
+          var ctx = getContext("2d")
+          ctx.clearRect(0, 0, width, height)
+          ctx.save()
+          ctx.translate(40, 40)
+          dockChrome.dockPath(ctx, root.surfaceShadow)
+          ctx.restore()
+        }
+        Connections {
+          target: dockChrome
+          function onLeftWidthChanged() { dockChromeShadowCanvas.requestPaint() }
+          function onRightXChanged() { dockChromeShadowCanvas.requestPaint() }
+          function onRightWidthChanged() { dockChromeShadowCanvas.requestPaint() }
+          function onWidthChanged() { dockChromeShadowCanvas.requestPaint() }
+          function onVisibleChanged() { dockChromeShadowCanvas.requestPaint() }
+        }
+        Connections {
+          target: root
+          function onDockedChanged() { dockChromeShadowCanvas.requestPaint() }
+          function onFullbarStyleChanged() { dockChromeShadowCanvas.requestPaint() }
+          function onDockedBarColorChanged() { dockChromeShadowCanvas.requestPaint() }
+        }
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          blurEnabled: true
+          blurMax: 32
+          blur: 0.72
+        }
+      }
+
+      Canvas {
+        id: dockChromeFillCanvas
+        anchors.fill: parent
+        antialiasing: true
+        onPaint: {
+          var ctx = getContext("2d")
+          ctx.clearRect(0, 0, width, height)
+          dockChrome.dockPath(ctx, root.frameColor, root.frameColor)
+        }
+        Connections {
+          target: dockChrome
+          function onLeftWidthChanged() { dockChromeFillCanvas.requestPaint() }
+          function onRightXChanged() { dockChromeFillCanvas.requestPaint() }
+          function onRightWidthChanged() { dockChromeFillCanvas.requestPaint() }
+          function onWidthChanged() { dockChromeFillCanvas.requestPaint() }
+          function onVisibleChanged() { dockChromeFillCanvas.requestPaint() }
+        }
+        Connections {
+          target: root
+          function onDockedChanged() { dockChromeFillCanvas.requestPaint() }
+          function onFullbarStyleChanged() { dockChromeFillCanvas.requestPaint() }
+          function onDockedBarColorChanged() { dockChromeFillCanvas.requestPaint() }
+        }
       }
     }
   }
@@ -2149,7 +2344,7 @@ Item {
     // total (was 6 in v1, was a broken ~12-13 before this fix) --
     // negligible rather than "definitely something different".
     Rectangle {
-      visible: root.docked && root.position === "top"
+      visible: root.docked && root.position === "top" && !root.frameOwnsDockChrome
       anchors { top: parent.top; left: parent.left; right: parent.right }
       height: root.seamOverlap + 1
       color: root.frameColor
@@ -2167,13 +2362,13 @@ Item {
     // pixels that already show FrameWindow's own continuing border there
     // regardless, same color, at every height.
     Rectangle {
-      visible: root.docked && root.position === "top"
+      visible: root.docked && root.position === "top" && !root.frameOwnsDockChrome
       anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
       width: root.seamOverlap + 1
       color: root.frameColor
     }
     Rectangle {
-      visible: root.docked && root.position === "top"
+      visible: root.docked && root.position === "top" && !root.frameOwnsDockChrome
       anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
       width: root.seamOverlap + 1
       color: root.frameColor
@@ -2282,7 +2477,22 @@ Item {
       id: horizontalBar
 
       Item {
+        id: horizontalBarRoot
         anchors.fill: parent
+        onWidthChanged: publishDockChromeMetrics()
+        onHeightChanged: publishDockChromeMetrics()
+        Component.onCompleted: Qt.callLater(publishDockChromeMetrics)
+
+        function publishDockChromeMetrics() {
+          if (!root.docked || root.position !== "top") return
+          root.publishDockChromeMetrics(root.screenNameForWindow(barWindow), {
+            screenWidth: horizontalBarRoot.width,
+            barHeight: root.barSize,
+            leftWidth: settingsPill.x + settingsPill.width,
+            rightX: rightDockedBg.x,
+            rightWidth: horizontalBarRoot.width - rightDockedBg.x
+          })
+        }
 
         // Docked mode: the left group (menuPill/workspacesPill/
         // settingsPill) and right group (trayPill/pluginPinsPill/
@@ -2355,6 +2565,7 @@ Item {
         // layering there as pure black."
         Item {
           id: leftShoulderShadowClip
+          visible: !root.frameOwnsDockChrome
           anchors.top: parent.top
           anchors.left: parent.left
           anchors.right: parent.right
@@ -2437,6 +2648,7 @@ Item {
         // large the margin actually is -- not a hardcoded "+40".
         Item {
           id: rightShoulderShadowClip
+          visible: !root.frameOwnsDockChrome
           anchors.top: parent.top
           anchors.right: parent.right
           anchors.left: parent.left
@@ -2495,6 +2707,7 @@ Item {
         // leftShoulderShadowClip/rightShoulderShadowClip above for that.
         Item {
           id: dockedShoulderShadow
+          visible: !root.frameOwnsDockChrome
           anchors.fill: parent
 
         // Square (no radius) corner fills sitting BEHIND leftDockedBg/
@@ -2551,9 +2764,10 @@ Item {
 
         Rectangle {
           id: leftDockedBg
-          visible: root.docked
+          visible: root.docked && !root.frameOwnsDockChrome
           x: 0
           y: 0
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           // Normal notch skin: just the left group's own width. Fullbar skin:
           // stretch across the whole surface for the saved statusline strip.
           width: root.fullbarStyle ? parent.width : (settingsPill.x + settingsPill.width)
@@ -2595,7 +2809,7 @@ Item {
         // mismatch was the earlier bug.
         RoundCorner {
           id: leftShoulderWing
-          visible: root.docked
+          visible: root.docked && !root.frameOwnsDockChrome
           corner: "topLeft"
           size: root.shoulderWingSize
           color: root.dockedBarColor
@@ -2628,7 +2842,7 @@ Item {
         // own visibly wrong-colored triangle.
         RoundCorner {
           id: leftFrameHemWing
-          visible: root.docked
+          visible: root.docked && !root.frameOwnsDockChrome
           corner: "topLeft"
           size: root.shoulderWingSize
           color: root.frameColor
@@ -2638,9 +2852,11 @@ Item {
 
         Rectangle {
           id: rightDockedBg
-          visible: root.docked && !root.fullbarStyle
+          visible: root.docked && !root.fullbarStyle && !root.frameOwnsDockChrome
           x: trayPill.x
           y: 0
+          onXChanged: horizontalBarRoot.publishDockChromeMetrics()
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           width: parent.width - trayPill.x
           height: root.barSize
           color: root.dockedBarColor
@@ -2671,7 +2887,7 @@ Item {
         // shared pixel is invisible either way.
         RoundCorner {
           id: rightShoulderWing
-          visible: root.docked
+          visible: root.docked && !root.frameOwnsDockChrome
           corner: "topRight"
           size: root.shoulderWingSize
           color: root.dockedBarColor
@@ -2683,7 +2899,7 @@ Item {
         // not dockedBarColor).
         RoundCorner {
           id: rightFrameHemWing
-          visible: root.docked
+          visible: root.docked && !root.frameOwnsDockChrome
           corner: "topRight"
           size: root.shoulderWingSize
           color: root.frameColor
@@ -3024,6 +3240,8 @@ Item {
           anchors.leftMargin: 6
           anchors.verticalCenter: parent.verticalCenter
           width: settingsContent.width + 8 * 2
+          onXChanged: horizontalBarRoot.publishDockChromeMetrics()
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           height: root.barSize - Style.space(2)
 
           // Hidden (not just repositioned) when docked -- the merged
@@ -3176,6 +3394,8 @@ Item {
           // stays flat 8 in both modes -- unaffected either way.
           readonly property int leftPad: root.docked ? 20 : 8
           width: trayContent.width + 8 + leftPad
+          onXChanged: horizontalBarRoot.publishDockChromeMetrics()
+          onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
           height: root.barSize - Style.space(2)
 
           // Hidden (not just repositioned) when docked -- the merged
