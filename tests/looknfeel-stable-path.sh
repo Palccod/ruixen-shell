@@ -50,20 +50,20 @@ run_install() {
 if run_install; then status1=0; else status1=$?; cat "$fake_home/install.out" >&2; fi
 check "install from disposable checkout: exits 0" "$status1" "0"
 
-deployed="$fake_home/.local/share/ruixen-shell/hyprland/looknfeel.ruixen.lua"
+deployed="$fake_home/.local/share/ruixen-shell/hyprland/looknfeel.half.lua"
 target="$fake_home/.config/hypr/looknfeel.lua"
 
 check "looknfeel.lua symlinks to the stable deployed path, not the checkout" \
   "$(readlink "$target")" "$deployed"
 check "deployed asset matches the checkout's content at install time" \
-  "$(diff -q "$deployed" "$checkout/hyprland/looknfeel.ruixen.lua" >/dev/null 2>&1 && echo same)" "same"
+  "$(diff -q "$deployed" "$checkout/hyprland/looknfeel.half.lua" >/dev/null 2>&1 && echo same)" "same"
 
 # --- Reinstall/update atomically replaces the deployed asset --------
-printf '\n-- extra marker appended to simulate an upstream change --\n' >> "$checkout/hyprland/looknfeel.ruixen.lua"
+printf '\n-- extra marker appended to simulate an upstream change --\n' >> "$checkout/hyprland/looknfeel.half.lua"
 if run_install; then status2=0; else status2=$?; cat "$fake_home/install.out" >&2; fi
 check "reinstall after a checkout change: exits 0" "$status2" "0"
 check "reinstall: deployed asset was refreshed to match the changed checkout" \
-  "$(diff -q "$deployed" "$checkout/hyprland/looknfeel.ruixen.lua" >/dev/null 2>&1 && echo same)" "same"
+  "$(diff -q "$deployed" "$checkout/hyprland/looknfeel.half.lua" >/dev/null 2>&1 && echo same)" "same"
 check "reinstall: symlink still points at the same stable path (no churn)" \
   "$(readlink "$target")" "$deployed"
 
