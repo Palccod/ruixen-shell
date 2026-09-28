@@ -62,6 +62,7 @@ BarWidget {
   property bool canTogglePlaying: false
   property bool canPlay: false
   property bool canPause: false
+  property bool canSeek: false
   readonly property string playIcon: isPlaying ? "\udb80\udfe4" : "\udb81\udc0a"
 
   FileView {
@@ -94,6 +95,7 @@ BarWidget {
     root.canTogglePlaying = parsed.canTogglePlaying === true
     root.canPlay = parsed.canPlay === true
     root.canPause = parsed.canPause === true
+    root.canSeek = parsed.canSeek === true
   }
 
   function formatTime(seconds) {
@@ -128,6 +130,16 @@ BarWidget {
     id: mediaActionProcess
     running: false
     onExited: root.mediaActionPending = false
+  }
+
+  function sendMediaSeek(seconds) {
+    mediaSeekProcess.command = ["omarchy-shell", "ruixen-media", "seek", String(Math.round(seconds))]
+    mediaSeekProcess.running = true
+  }
+
+  Process {
+    id: mediaSeekProcess
+    running: false
   }
 
   property bool popupOpen: false
@@ -351,10 +363,38 @@ BarWidget {
 
           Rectangle {
             height: parent.height
-            width: parent.width * Math.min(1, root.trackPosition / Math.max(1, root.trackLength))
+            width: parent.width * Math.min(1, (seekDragArea.pressed ? seekDragArea.previewPosition : root.trackPosition) / Math.max(1, root.trackLength))
             radius: height / 2
             color: Color.accent
-            Behavior on width { NumberAnimation { duration: 450 } }
+            Behavior on width {
+              enabled: !seekDragArea.pressed
+              NumberAnimation { duration: 450 }
+            }
+          }
+
+          MouseArea {
+            id: seekDragArea
+            anchors.fill: parent
+            anchors.margins: -4
+            enabled: root.canSeek && root.trackLength > 0
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            property real previewPosition: 0
+            function ratioFromMouse(mouse) {
+              if (progressTrack.width <= 0) return 0
+              return Math.max(0, Math.min(1, mouse.x / progressTrack.width))
+            }
+            onPressed: function(mouse) {
+              previewPosition = ratioFromMouse(mouse) * root.trackLength
+            }
+            onPositionChanged: function(mouse) {
+              if (pressed) {
+                previewPosition = ratioFromMouse(mouse) * root.trackLength
+              }
+            }
+            onReleased: function(mouse) {
+              var targetSec = ratioFromMouse(mouse) * root.trackLength
+              root.sendMediaSeek(targetSec)
+            }
           }
         }
 
@@ -362,7 +402,7 @@ BarWidget {
           anchors.left: parent.left
           anchors.top: progressTrack.bottom
           anchors.topMargin: 2
-          text: root.formatTime(root.trackPosition)
+          text: root.formatTime(seekDragArea.pressed ? seekDragArea.previewPosition : root.trackPosition)
           color: Util.alpha(Color.popups.text, 0.58)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

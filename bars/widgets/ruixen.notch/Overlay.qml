@@ -293,6 +293,7 @@ Item {
 
   property bool hasMedia: false
   property bool isPlaying: false
+  property bool canSeek: false
   property string title: ""
   property string artist: ""
   property string album: ""
@@ -318,6 +319,7 @@ Item {
     }
     root.hasMedia = parsed.hasMedia === true
     root.isPlaying = parsed.playing === true
+    root.canSeek = parsed.canSeek === true
     root.title = typeof parsed.title === "string" ? parsed.title : ""
     root.artist = typeof parsed.artist === "string" ? parsed.artist : ""
     root.album = typeof parsed.album === "string" ? parsed.album : ""
@@ -348,6 +350,16 @@ Item {
     id: mediaActionProcess
     running: false
     onExited: root.mediaActionPending = false
+  }
+
+  function sendMediaSeek(seconds) {
+    mediaSeekProcess.command = ["omarchy-shell", "ruixen-media", "seek", String(Math.round(seconds))]
+    mediaSeekProcess.running = true
+  }
+
+  Process {
+    id: mediaSeekProcess
+    running: false
   }
 
   // ruixen-shell issue #42/#38: Omarchy v4.0.3 restricts
@@ -1978,11 +1990,41 @@ Item {
                   anchors.fill: parent
                   enabled: root.hasMedia
                   cursorShape: root.hasMedia ? Qt.PointingHandCursor : Qt.ArrowCursor
-                  onWheel: root.toggleMediaVizMode()
-                  // Click cycles bars/wave -- only meaningful once
-                  // already in cava mode (nothing to cycle on the
-                  // seeker or window name), direct request.
-                  onClicked: if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()
+                  // This MouseArea only actually receives input while
+                  // mediaVizMode is "cava" -- the seeker's own Item
+                  // (with its own MouseArea) sits on top and shadows
+                  // this one entirely whenever it's visible. Right
+                  // click switches back to the seeker, mirroring the
+                  // seeker's own MouseArea's right click going the
+                  // other way -- direct follow-up: "right click to go
+                  // back to the seeker." Wheel no longer toggles mode
+                  // here (removed) -- right click now owns that switch
+                  // exclusively in both directions, freeing wheel up to
+                  // mean "seek" whenever the seeker is the thing
+                  // showing, not "leave the seeker."
+                  acceptedButtons: Qt.LeftButton | Qt.RightButton
+                  onClicked: function(mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                      root.toggleMediaVizMode()
+                      return
+                    }
+                    // Left click cycles bars/wave -- only meaningful
+                    // once already in cava mode (nothing to cycle on
+                    // the seeker or window name), direct request.
+                    if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()
+                  }
+                  // Wheel cycles bars/wave here too, mirroring the
+                  // seeker's own wheel-seeks-instead-of-switches change
+                  // -- direct follow-up: "on the visualizer when the
+                  // bars are showing, i cant scroll to the wave
+                  // anymore... i guess right click and wheel scroll?"
+                  // Left click keeps doing the same thing too (not
+                  // replaced) -- both are just different ways to reach
+                  // the one toggle, same as wheel/click already being
+                  // two paths to the same seek on the other row.
+                  onWheel: function(wheel) {
+                    if (root.mediaVizMode === "cava") root.toggleCavaMiniStyle()
+                  }
                 }
 
               // Track (full length, dim) + wave (played portion only, up
@@ -2005,7 +2047,15 @@ Item {
 
               // Split point -- where the wave's played portion meets
               // the dim unplayed track, before any gap trim.
-              readonly property real splitX: width * root.progressRatio
+              //
+              // pressedButtons & LeftButton, not the bare pressed flag --
+              // seekerDragArea now also accepts the right button (see its
+              // own comment), and pressed goes true for ANY accepted
+              // button. A right-click-hold with the bare flag would
+              // freeze this at previewRatio's last (possibly stale, e.g.
+              // 0 before any left-drag ever happened) value instead of
+              // showing the real live position while held.
+              readonly property real splitX: width * ((seekerDragArea.pressedButtons & Qt.LeftButton) ? seekerDragArea.previewRatio : root.progressRatio)
               // Same gap-around-the-tip design as the player ring/
               // dials/brightness bar, ported here too now that it's
               // right on the other components -- per direct request
@@ -2072,7 +2122,69 @@ Item {
                 x: parent.splitX - width / 2
                 visible: root.hasMedia
 
-                Behavior on x { NumberAnimation { duration: 450 } }
+                Behavior on x {
+                  enabled: !(seekerDragArea.pressedButtons & Qt.LeftButton)
+                  NumberAnimation { duration: 450 }
+                }
+              }
+
+              MouseArea {
+                id: seekerDragArea
+                anchors.fill: parent
+                enabled: root.hasMedia && root.canSeek && root.trackLength > 0
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                // Left drags to seek (this row's whole reason for
+                // existing), which collided with left click's prior job
+                // of switching between the seeker and the mini cava
+                // visualizer. Direct follow-up: "if left click controls
+                // the seeker then we cant use left click to switch to
+                // visualizer... right click triggers the visualizer
+                // instead now." MouseArea only accepts Left by default,
+                // so Right is explicitly opted in below and routed to
+                // toggleMediaVizMode via onClicked -- onPressed/
+                // onPositionChanged/onReleased all stay gated to the
+                // left button specifically (mouse.button/pressedButtons
+                // checks, not the bare pressed/press-only mouse.button
+                // default) so a right click can't also start a seek
+                // drag. Wheel already toggled the same viz mode before
+                // this PR and still does, unchanged -- this just adds a
+                // second, more discoverable way to reach it now that
+                // left click itself means something else on this row.
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                property real previewRatio: 0
+                function ratioFromMouse(mouse) {
+                  if (width <= 0) return 0
+                  return Math.max(0, Math.min(1, mouse.x / width))
+                }
+                onPressed: function(mouse) {
+                  if (mouse.button === Qt.LeftButton) previewRatio = ratioFromMouse(mouse)
+                }
+                onPositionChanged: function(mouse) {
+                  if (mouse.buttons & Qt.LeftButton) {
+                    previewRatio = ratioFromMouse(mouse)
+                  }
+                }
+                onReleased: function(mouse) {
+                  if (mouse.button !== Qt.LeftButton) return
+                  var ratio = ratioFromMouse(mouse)
+                  root.sendMediaSeek(ratio * root.trackLength)
+                }
+                onClicked: function(mouse) {
+                  if (mouse.button === Qt.RightButton) root.toggleMediaVizMode()
+                }
+                // Wheel now seeks (5s/notch, same flat-step convention
+                // Display/Audio's own volume-scroll rows already use)
+                // instead of switching to the visualizer -- direct
+                // follow-up: "when i [wheel] scroll it is going to the
+                // visualizer, we dont want that... lets use the wheel
+                // scroll to control the seeker when the seeker is
+                // showing." Right click (above) is now the only way to
+                // leave the seeker.
+                onWheel: function(wheel) {
+                  var delta = wheel.angleDelta.y > 0 ? 5 : -5
+                  var target = Math.max(0, Math.min(root.trackLength, root.trackPosition + delta))
+                  root.sendMediaSeek(target)
+                }
               }
               }
 
@@ -2429,8 +2541,10 @@ Item {
                 themeSurfaceMode: root.frameColorMode === "theme"
                 accentDashboardHeaders: root.barIconTone === "accent"
                 sendMediaAction: root.sendMediaAction
+                sendMediaSeek: root.sendMediaSeek
                 hasMedia: root.hasMedia
                 isPlaying: root.isPlaying
+                canSeek: root.canSeek
                 playIcon: root.playIcon
                 title: root.title
                 artist: root.artist
