@@ -110,7 +110,7 @@ Item {
   }
 
   function surfaceFillForMaterial(surface, material) {
-    var alpha = material === "glass" ? 0.78 : surface.a
+    var alpha = material === "glass" ? 0.68 : surface.a
     return Qt.rgba(surface.r, surface.g, surface.b, alpha)
   }
 

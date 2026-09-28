@@ -136,6 +136,28 @@ local ruixenInactiveOpacity = ruixenGlassProfile == "transparent" and 0.75 or 0.
 local ruixenBlurSize = ruixenGlassProfile == "transparent" and 4 or 7
 local ruixenBlurPasses = ruixenGlassProfile == "transparent" and 2 or 3
 
+-- Bar material is a separate #78 surface axis from the global Glass
+-- Effect profile above. QML can make the floating pills translucent on
+-- its own, but real frosted glass requires a compositor layer rule for
+-- omarchy-bar too. Scope it to floating mode only: docked mode's
+-- frame/notch/bar chrome is a coupled surface and stays solid until
+-- that pass is designed as one unit.
+local function readFloatingBarGlassEnabled()
+  local home = os.getenv("HOME") or ""
+
+  local surface = io.open(home .. "/.local/state/ruixen/bar-surface.json", "r")
+  local surfaceRaw = surface and surface:read("*a") or ""
+  if surface then surface:close() end
+  if not surfaceRaw:match('"material"%s*:%s*"glass"') then return false end
+
+  local shell = io.open(home .. "/.config/omarchy/shell.json", "r")
+  local shellRaw = shell and shell:read("*a") or ""
+  if shell then shell:close() end
+  return not shellRaw:match('"docked"%s*:%s*true')
+end
+
+local ruixenFloatingBarGlassEnabled = readFloatingBarGlassEnabled()
+
 hl.config({
   general = {
     border_size = 1,
@@ -250,6 +272,14 @@ hl.layer_rule({
   blur = true,
   ignore_alpha = 0.4,
 })
+
+if ruixenFloatingBarGlassEnabled then
+  hl.layer_rule({
+    match = { namespace = "omarchy-bar" },
+    blur = true,
+    ignore_alpha = 0.4,
+  })
+end
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#animations
 --
