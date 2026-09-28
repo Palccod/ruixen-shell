@@ -40,8 +40,8 @@
 #      through it (stayawake, agents, microphone, network, any
 #      third-party widget). This is the catch-all now: every id in
 #      "right" that's neither tray nor the fixed system list.
-#   3. curatedPill ("SYSTEM") -- system-update, power, capturestatus,
-#      quickactions, settingsbutton. An exact id-match list, not a
+#   3. curatedPill ("SYSTEM") -- system-update, power, quickactions,
+#      settingsbutton. An exact id-match list, not a
 #      catch-all -- nothing joins it except by being explicitly added here.
 #   4. clockPill -- weather + clock, unchanged throughout every pass
 #      above.
@@ -85,12 +85,12 @@ check() {
 }
 
 # --- id-membership lists ---------------------------------------------
-# Grew from four to five (ruixen.peripherals), back to four, then back to
-# five for the active-only capturestatus privacy indicator -- still an
-# exact id-match list, not a catch-all.
+# Grew from four to five (ruixen.peripherals), back to four. The active
+# screen-recording state now lives on ruixen.quickactions instead of adding
+# a dynamic-width capturestatus slot to this fixed system group.
 curated_ids_line="$(grep -m1 'readonly property var curatedRightIds:' "$bar_qml")"
-check "curatedRightIds is the exact, fixed SYSTEM list: system-update, power, capturestatus, quickactions, settingsbutton" \
-  "$curated_ids_line" '  readonly property var curatedRightIds: ["omarchy.system-update", "ruixen.power", "ruixen.capturestatus", "ruixen.quickactions", "ruixen.settingsbutton"]'
+check "curatedRightIds is the exact, fixed SYSTEM list: system-update, power, quickactions, settingsbutton" \
+  "$curated_ids_line" '  readonly property var curatedRightIds: ["omarchy.system-update", "ruixen.power", "ruixen.quickactions", "ruixen.settingsbutton"]'
 
 check "there is no separate sideRightIds list anymore (pill 2's own filter is inline: not tray, not curatedRightIds)" \
   "$(grep -c 'sideRightIds' "$bar_qml" || true)" "0"

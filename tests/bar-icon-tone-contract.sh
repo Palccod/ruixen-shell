@@ -62,7 +62,7 @@ check "SettingsContent.qml writes the same icon tone state file" \
   "$(grep -c 'bar-icon-tone.json' "$settings_qml")" "1"
 
 check "decorative Ruixen BarIconButtons use iconForeground" \
-  "$(grep -R -c 'foreground: root\.bar ? root\.bar\.iconForeground : "#ffffff"' "$repo_dir/bars/widgets" | awk -F: '{ total += $2 } END { print total }')" "5"
+  "$(grep -R -c 'root\.bar\.iconForeground' "$repo_dir/bars/widgets" | awk -F: '{ total += $2 } END { print total }')" "6"
 
 # ruixen.weather deliberately does NOT use iconForeground -- direct live
 # follow-up: it shares clockPill with the stock omarchy.clock widget,
@@ -74,8 +74,8 @@ check "ruixen.weather does not override foreground with iconForeground (mismatch
 check "symbolic tray icons use iconForeground" \
   "$(grep -c 'colorizationColor: root.iconForeground' "$repo_dir/bars/widgets/ruixen.tray/Tray.qml")" "1"
 
-check "screen recording indicator uses semantic bad, not decorative icon tone" \
-  "$(grep -c 'foreground: root.bar ? root.bar.semanticBad : Color.urgent' "$repo_dir/bars/widgets/ruixen.capturestatus/BarWidget.qml")" "1"
+check "screen recording control uses semantic bad only while active and icon tone while idle" \
+  "$(grep -c 'root\.recording ? (root\.bar ? root\.bar\.semanticBad : Color\.urgent) : (root\.bar ? root\.bar\.iconForeground : "#ffffff")' "$repo_dir/bars/widgets/ruixen.capturestatus/BarWidget.qml")" "1"
 
 check "peripheral battery indicator keeps semantic charge colors" \
   "$(grep -c 'foreground: root.percentColor(root.selectedDevice)' "$repo_dir/bars/widgets/ruixen.peripherals/BarWidget.qml")" "1"

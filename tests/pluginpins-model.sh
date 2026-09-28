@@ -43,7 +43,7 @@ check "manifest defaults to the right section (curatedRightIds places it explici
 required_exclusions=(
   "ruixen.applauncher" "ruixen.workspaces" "ruixen.pinnedapps" "ruixen.tray"
   "ruixen.quickactions" "ruixen.settingsbutton"
-  "ruixen.weather" "ruixen.media" "ruixen.pluginpins" "ruixen.capturestatus" "omarchy.clock"
+  "ruixen.weather" "ruixen.media" "ruixen.pluginpins" "omarchy.clock"
   "omarchy.system-update" "omarchy.power"
   "omarchy.keyboard-layout" "omarchy.indicators"
   "omarchy.active-window"
@@ -57,7 +57,7 @@ for id in "${required_exclusions[@]}"; do
   fi
 done
 if [[ "$missing" -eq 0 ]]; then
-  printf 'ok   - excludedIds covers every structural ruixen id, capturestatus, omarchy.clock (shares clockPill with weather), system-update/power (curatedPill'"'"'s exact fixed set), keyboard-layout (self-hides on a single layout), indicators (redundant + a real IPC collision), and active-window (ruixen.notch'"'"'s own collapsed player pill already shows it)\n'
+  printf 'ok   - excludedIds covers every structural ruixen id, omarchy.clock (shares clockPill with weather), system-update/power (curatedPill'"'"'s exact fixed set), keyboard-layout (self-hides on a single layout), indicators (redundant + a real IPC collision), and active-window (ruixen.notch'"'"'s own collapsed player pill already shows it)\n'
   pass=$((pass + 1))
 else
   fail_count=$((fail_count + 1))
@@ -78,7 +78,11 @@ fi
 # history), then moved back out to reduce clutter (direct follow-up:
 # "its not that important for me to always see it right now"). Pinnable
 # through here once more, same as stayawake/agents.
-must_not_exclude=("ruixen.stayawake" "omarchy.agents" "omarchy.network" "ruixen.peripherals")
+#
+# ruixen.capturestatus also stays pinnable now: it is a fixed-width
+# screen-recording start/stop control, not a structural active-only
+# indicator.
+must_not_exclude=("ruixen.stayawake" "omarchy.agents" "omarchy.network" "ruixen.peripherals" "ruixen.capturestatus")
 wrongly_excluded=0
 for id in "${must_not_exclude[@]}"; do
   if grep -qF "\"$id\"" <<<"$excluded_block"; then
@@ -87,7 +91,7 @@ for id in "${must_not_exclude[@]}"; do
   fi
 done
 if [[ "$wrongly_excluded" -eq 0 ]]; then
-  printf 'ok   - stayawake/agents/network/peripherals are NOT excluded (they render in this widget'"'"'s own pill, toggling them through it is the intended interaction)\n'
+  printf 'ok   - stayawake/agents/network/peripherals/capturestatus are NOT excluded (they render in this widget'"'"'s own pill, toggling them through it is the intended interaction)\n'
   pass=$((pass + 1))
 else
   fail_count=$((fail_count + 1))

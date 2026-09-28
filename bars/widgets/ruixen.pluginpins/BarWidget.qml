@@ -126,10 +126,8 @@ BarWidget {
   // pinnable or not in the plugin group"), so pinning/unpinning them
   // through this dropdown is exactly the intended interaction, not
   // something to guard against.
-  // ruixen.capturestatus is excluded for the same structural reason as
-  // ruixen.power: it lives in curatedPill as an active-only privacy
-  // indicator, so the generic pin menu should not repeatedly remove and
-  // re-add it as if it were a normal optional plugin.
+  // ruixen.capturestatus stays pinnable now: it is a fixed-width
+  // start/stop recording control, not an active-only structural slot.
   // omarchy.active-window is also excluded -- ruixen.notch's own
   // collapsed player pill already shows the active window's title when
   // nothing is playing, so offering it here as a separate pinnable bar
@@ -139,7 +137,6 @@ BarWidget {
     "ruixen.applauncher", "ruixen.workspaces", "ruixen.pinnedapps",
     "ruixen.tray", "ruixen.quickactions", "ruixen.settingsbutton",
     "ruixen.weather", "ruixen.media", "ruixen.pluginpins", "ruixen.power",
-    "ruixen.capturestatus",
     "omarchy.clock", "omarchy.system-update", "omarchy.power",
     "omarchy.keyboard-layout", "omarchy.indicators",
     "omarchy.bar", "omarchy.menu", "omarchy.spacer", "omarchy.active-window",

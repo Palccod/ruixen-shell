@@ -64,6 +64,13 @@ BarWidget {
     refreshReminders()
   }
 
+  Timer {
+    interval: 2000
+    running: true
+    repeat: true
+    onTriggered: root.refreshRecording()
+  }
+
   onPopupOpenChanged: if (popupOpen) {
     refreshRecording()
     refreshReminders()
@@ -108,8 +115,8 @@ BarWidget {
     bar: root.bar
     // Sliders-vertical (Font Awesome sliders, U+F1DE) -- swapped from a gear icon.
     text: ""
-    foreground: root.bar ? root.bar.iconForeground : "#ffffff"
-    tooltipText: "More actions"
+    foreground: root.recording ? (root.bar ? root.bar.semanticBad : Color.urgent) : (root.bar ? root.bar.iconForeground : "#ffffff")
+    tooltipText: root.recording ? "Screen recording active. Click for stop action." : "More actions"
     onPressed: function() { root.popupOpen = !root.popupOpen }
   }
 

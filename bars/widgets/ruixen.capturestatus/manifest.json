@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "ruixen",
   "license": "MIT",
-  "description": "Active-only screen recording indicator for Omarchy.",
+  "description": "Pinned screen recording control for Omarchy.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,8 +13,8 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Capture Status",
-    "description": "Shows a REC chip while Omarchy screen recording is active.",
+    "displayName": "Screen Recording",
+    "description": "Start screen recording, then click again to stop while active.",
     "category": "Status",
     "allowMultiple": false
   }

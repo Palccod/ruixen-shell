@@ -281,7 +281,7 @@ jq -n \
   # omarchy.power -> ruixen.power is a RENAME, not a strip: Ruixen now
   # ships its own clone of the stock power widget (semantic
   # good/warn/bad battery-icon coloring, same treatment already given
-  # to ruixen.capturestatus/ruixen.peripherals -- see "Add semantic bar
+  # to ruixen.peripherals -- see "Add semantic bar
   # signal colors") and curatedRightIds/ruixen-bar-canonical.json both
   # point at ruixen.power now, not omarchy.power. An existing owner bar
   # is otherwise left completely untouched (see $ownedBar above), so
@@ -404,7 +404,6 @@ jq -n \
   # widget must NOT have happen to it.
   | ([
        { id: "ruixen.pinnedapps", section: "left", after: "ruixen.workspaces" },
-       { id: "ruixen.capturestatus", section: "right", after: "ruixen.power" },
        { id: "ruixen.pluginpins", section: "right", after: "ruixen.tray" }
      ]) as $requiredStructural
   | (if ($centerRescuedBar.layout | type) == "object" then
