@@ -34,6 +34,14 @@ Item {
   property color muted: Qt.rgba(1, 1, 1, 0.5)
   property color accent: "#3ecf5b"
   property string fontFamily: "JetBrainsMono Nerd Font"
+  property bool themeSurfaceMode: false
+  property bool accentDashboardHeaders: false
+  readonly property color accentForeground: "#000000"
+  readonly property color dashboardHeaderText: accentDashboardHeaders ? accent : textColor
+  readonly property color dashboardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.05) : Qt.rgba(1, 1, 1, 0.05)
+  readonly property color dashboardSurfaceRaised: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.08) : Qt.rgba(1, 1, 1, 0.08)
+  readonly property color dashboardSurfaceStrong: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.075) : "#000000"
+  readonly property color dashboardBorder: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.12) : Qt.rgba(1, 1, 1, 0.14)
 
   // Media passthrough -- reads the same root-level properties Overlay.qml
   // itself already computes from ruixen.media, just handed down instead
@@ -257,7 +265,7 @@ Item {
   component Pane: Rectangle {
     radius: 10
     color: "transparent"
-    border.color: Qt.rgba(1, 1, 1, 0.14)
+    border.color: root.dashboardBorder
     border.width: 1.5
     clip: true
   }
@@ -277,13 +285,13 @@ Item {
     width: size
     height: size
     radius: size / 4
-    color: active ? root.accent : Qt.rgba(1, 1, 1, 0.06)
+    color: active ? root.accent : root.dashboardSurfaceRaised
     Behavior on color { ColorAnimation { duration: 120 } }
 
     Text {
       anchors.centerIn: parent
       text: qt.glyph
-      color: qt.active ? "#000000" : root.textColor
+      color: qt.active ? root.accentForeground : root.textColor
       font.family: root.fontFamily
       font.pixelSize: qt.size * 0.4
     }
@@ -301,7 +309,7 @@ Item {
   // black+border look above.
   component PaneFilled: Rectangle {
     radius: 10
-    color: Qt.rgba(1, 1, 1, 0.05)
+    color: root.dashboardSurface
     clip: true
   }
 
@@ -801,7 +809,7 @@ Item {
               // use the square icon"), dropped the circle wrapper
               // entirely for a plain hollow square.
               text: root.hasMedia ? root.playIcon : "\udb81\udf63"
-              color: "#000000"
+              color: root.accentForeground
               font.family: root.fontFamily
               font.pixelSize: 20
             }
@@ -933,7 +941,7 @@ Item {
         Layout.fillWidth: true
         Layout.fillHeight: true
         radius: 10
-        color: Qt.rgba(1, 1, 1, 0.08)
+        color: root.dashboardSurfaceRaised
         clip: true
 
         property int monthShift: 0
@@ -1013,12 +1021,12 @@ Item {
               Layout.fillWidth: true
               Layout.fillHeight: true
               radius: 8
-              color: "#000000"
+              color: root.dashboardSurfaceStrong
 
               Text {
                 anchors.centerIn: parent
                 text: calendarPane.viewingDate.toLocaleDateString(Qt.locale(), "MMMM yyyy")
-                color: root.textColor
+                color: root.dashboardHeaderText
                 font.family: root.fontFamily
                 font.pixelSize: 16
                 font.bold: true
@@ -1029,7 +1037,7 @@ Item {
               Layout.preferredWidth: 36
               Layout.fillHeight: true
               radius: 8
-              color: "#000000"
+              color: root.dashboardSurfaceStrong
 
               Text {
                 anchors.centerIn: parent
@@ -1050,7 +1058,7 @@ Item {
               Layout.preferredWidth: 36
               Layout.fillHeight: true
               radius: 8
-              color: "#000000"
+              color: root.dashboardSurfaceStrong
 
               Text {
                 anchors.centerIn: parent
@@ -1100,7 +1108,7 @@ Item {
             Layout.maximumHeight: 260
             Layout.alignment: Qt.AlignTop
             radius: 6
-            color: "#000000"
+            color: root.dashboardSurfaceStrong
 
             ColumnLayout {
               anchors.fill: parent
@@ -1148,7 +1156,7 @@ Item {
                 Layout.leftMargin: 8
                 Layout.rightMargin: 8
                 Layout.preferredHeight: 1
-                color: Qt.rgba(1, 1, 1, 0.14)
+                color: root.dashboardBorder
               }
 
               Repeater {
@@ -1160,7 +1168,7 @@ Item {
                   Layout.fillWidth: true
                   Layout.preferredHeight: 26
                   radius: 10
-                  color: index === calendarPane.currentWeekRow ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                  color: index === calendarPane.currentWeekRow ? root.dashboardSurfaceRaised : "transparent"
 
                   RowLayout {
                     anchors.fill: parent
@@ -1189,7 +1197,7 @@ Item {
                           Text {
                             anchors.centerIn: parent
                             text: parent.parent.modelData.day
-                            color: parent.parent.modelData.isToday ? "#000000" : (parent.parent.modelData.inMonth ? root.textColor : root.muted)
+                            color: parent.parent.modelData.isToday ? root.accentForeground : (parent.parent.modelData.inMonth ? root.textColor : root.muted)
                             font.family: root.fontFamily
                             font.pixelSize: 10
                           }
@@ -1244,12 +1252,12 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: 10
-            color: "#000000"
+            color: root.dashboardSurfaceStrong
 
             Text {
               anchors.centerIn: parent
               text: "Notifications"
-              color: root.textColor
+              color: root.dashboardHeaderText
               font.family: root.fontFamily
               font.pixelSize: 14
               font.bold: true
@@ -1270,7 +1278,7 @@ Item {
             Layout.preferredWidth: 32
             Layout.fillHeight: true
             radius: 10
-            color: "#000000"
+            color: root.dashboardSurfaceStrong
 
             Text {
               anchors.centerIn: parent
@@ -1300,7 +1308,7 @@ Item {
             Layout.preferredWidth: 32
             Layout.fillHeight: true
             radius: 10
-            color: "#000000"
+            color: root.dashboardSurfaceStrong
 
             Text {
               anchors.centerIn: parent
@@ -1397,7 +1405,7 @@ Item {
             // in this same file) rather than a literal stadium/pill,
             // leaves the text margins genuinely clear.
             radius: 10
-            color: "#000000"
+            color: root.dashboardSurfaceStrong
             // Direct follow-up chain: image made edge-to-edge with a
             // plain clip (previous commit) left the top two corners
             // visibly squared where the image sits flush against them
@@ -1627,7 +1635,7 @@ Item {
               bottomRightRadius: 10
               antialiasing: true
               color: "transparent"
-              border.color: "#000000"
+              border.color: root.dashboardSurfaceStrong
               border.width: 1.5
             }
           }
@@ -1727,7 +1735,7 @@ Item {
         Layout.preferredHeight: 56
         Layout.alignment: Qt.AlignHCenter
         radius: width / 2
-        color: Qt.rgba(1, 1, 1, 0.06)
+        color: root.dashboardSurfaceRaised
 
         // Not a full circle -- a gapped circular indicator, in the
         // same spirit as Material 3's own gap-style circular progress
@@ -1868,7 +1876,7 @@ Item {
         Layout.preferredWidth: 56
         Layout.preferredHeight: 56
         radius: 14
-        color: Qt.rgba(1, 1, 1, 0.06)
+        color: root.dashboardSurfaceRaised
 
         Text {
           anchors.centerIn: parent
