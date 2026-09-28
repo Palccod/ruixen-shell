@@ -47,8 +47,8 @@ check "fullbar restores the saved full-width docked strip" \
 check "fullbar restores the saved right-edge corner patch" \
   "$(grep -A4 'Historical sharp+docked full-strip corner patch' "$bar_qml" | grep -m1 'visible: root.docked && root.fullbarStyle')" '          visible: root.docked && root.fullbarStyle'
 
-check "normal right docked background is disabled in fullbar" \
-  "$(grep -A5 'id: rightDockedBg$' "$bar_qml" | grep -m1 'visible: root.docked && !root.fullbarStyle')" '          visible: root.docked && !root.fullbarStyle'
+check "legacy right docked background is disabled in fullbar or when frame owns dock chrome" \
+  "$(grep -A5 'id: rightDockedBg$' "$bar_qml" | grep -m1 'visible: root.docked && !root.fullbarStyle && !root.frameOwnsDockChrome')" '          visible: root.docked && !root.fullbarStyle && !root.frameOwnsDockChrome'
 
 check "notch reads shell.json to learn bar.style" \
   "$(grep -m1 'readonly property string shellConfigPath:' "$notch_qml")" '  readonly property string shellConfigPath: Quickshell.env("HOME") + "/.config/omarchy/shell.json"'
