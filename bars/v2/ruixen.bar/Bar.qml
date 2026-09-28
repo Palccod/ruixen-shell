@@ -177,7 +177,7 @@ Item {
   readonly property color pillForeground: readableForegroundForSurface(floatingPillSurface, themeForeground)
   readonly property color popupForeground: Color.popups.text
   property color foreground: pillForeground
-  property string iconTone: "mono"
+  property string iconTone: "accent"
   readonly property color iconForeground: iconTone === "accent" ? Color.accent : pillForeground
   // Semantic status colors intentionally bypass Icon Tone. Mono/Accent only
   // controls decorative icons; stateful indicators still need readable
@@ -611,7 +611,7 @@ Item {
   // "remove white from the setting as an option then and just leave
   // Black and Theme."
   property string frameColorMode: "black"
-  property string barSurfaceMaterial: "solid"
+  property string barSurfaceMaterial: "glass"
   readonly property color frameColor: resolveSurfaceColor(root.frameColorMode)
   // Docked mode's merged shoulder strip (leftDockedBg/rightDockedBg and
   // their wing pieces below) hides every individual pill's own
@@ -638,7 +638,7 @@ Item {
       var p = JSON.parse(String(raw || "").trim() || "{}")
       root.iconTone = normalizeIconTone(p && p.tone)
     } catch (e) {
-      root.iconTone = "mono"
+      root.iconTone = "accent"
     }
   }
 
@@ -649,7 +649,7 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.loadBarIconTone(text())
-    onLoadFailed: root.iconTone = "mono"
+    onLoadFailed: root.iconTone = "accent"
   }
 
   // bar-surface.json is the new #78 state for independent color/material
@@ -719,10 +719,10 @@ Item {
     try {
       var p = JSON.parse(String(raw || "").trim() || "{}")
       root.frameColorMode = normalizeSurfaceColorMode(p && p.mode)
-      root.barSurfaceMaterial = "solid"
+      root.barSurfaceMaterial = "glass"
     } catch (e) {
       root.frameColorMode = "black"
-      root.barSurfaceMaterial = "solid"
+      root.barSurfaceMaterial = "glass"
     }
   }
 
@@ -1043,7 +1043,7 @@ Item {
   // for me to always see it right now" -- pill 2, pinned on demand
   // through ruixen.pluginpins, same as stayawake/agents, rather than a
   // permanent fixture here).
-  readonly property var curatedRightIds: ["omarchy.system-update", "ruixen.power", "ruixen.capturestatus", "ruixen.quickactions", "ruixen.settingsbutton"]
+  readonly property var curatedRightIds: ["omarchy.system-update", "ruixen.power", "ruixen.quickactions", "ruixen.settingsbutton"]
   // The two ids clockPill gives its own special pill+divider treatment
   // (see clockPill's own comment) -- direct review finding ("Support
   // arbitrary third-party widgets in the horizontal center region",

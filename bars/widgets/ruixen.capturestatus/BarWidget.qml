@@ -3,10 +3,8 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Live privacy/status chip for Omarchy's built-in screen recorder.
-// Omarchy's capture script starts gpu-screen-recorder and stops it with
-// SIGINT so the video finalizes cleanly; mirror that same process contract
-// instead of inventing separate state.
+// Fixed-width screen recording control. It can live in Plugin Pins without
+// forcing the bar to relayout when recording starts/stops.
 BarWidget {
   id: root
   moduleName: "ruixen.capturestatus"
@@ -33,20 +31,18 @@ BarWidget {
     onExited: function(exitCode) { root.recording = exitCode === 0 }
   }
 
-  implicitWidth: root.recording ? chip.implicitWidth : 0
+  implicitWidth: chip.implicitWidth
   implicitHeight: chip.implicitHeight
-  visible: root.recording
 
   BarIconButton {
     id: chip
     anchors.fill: parent
     bar: root.bar
-    text: "●"
-    foreground: root.bar ? root.bar.semanticBad : Color.urgent
-    fontSize: Style.font.body
-    tooltipText: "Screen recording active. Click to stop."
+    text: "󰻂"
+    foreground: root.recording ? (root.bar ? root.bar.semanticBad : Color.urgent) : (root.bar ? root.bar.iconForeground : "#ffffff")
+    tooltipText: root.recording ? "Stop screen recording" : "Start screen recording"
     onPressed: function() {
-      if (root.bar) root.bar.run("omarchy-capture-screenrecording --stop-recording")
+      if (root.bar) root.bar.run(root.recording ? "omarchy-capture-screenrecording --stop-recording" : "omarchy-menu toggle trigger.capture.screenrecord")
     }
   }
 }

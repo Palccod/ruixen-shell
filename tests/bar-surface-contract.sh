@@ -35,6 +35,9 @@ check "floating surface color follows the shared frame appearance mode" \
 check "floating surface material follows the bar surface state" \
   "$(grep -c 'readonly property string floatingSurfaceMaterial: root.barSurfaceMaterial' "$bar_qml")" "1"
 
+check "bar surface material defaults to glass when no user state exists" \
+  "$(( $(grep -c 'property string barSurfaceMaterial: "glass"' "$bar_qml") + $(grep -c 'property string barSurfaceMaterial: "glass"' "$settings_qml") ))" "2"
+
 check "floating pills resolve their fill through the surface resolver" \
   "$(grep -c 'readonly property color floatingPillSurface: resolveSurfaceColor(floatingSurfaceColorMode)' "$bar_qml")" "1"
 
@@ -86,11 +89,23 @@ check "GroupPill shadow uses the semantic shadow token" \
 check "launcher settings labels the shared control as Surface Color" \
   "$(grep -c 'label: "Surface Color"' "$settings_qml")" "1"
 
+check "launcher settings keeps Bar Layout first on the Bar page" \
+  "$(grep -Fc 'return [barLayoutItem, frameColorModeItem, surfaceMaterialItem, iconToneItem, notchVisibilityItem, appLauncherIconItem]' "$settings_qml")" "1"
+
+check "launcher settings focuses Bar Layout at index 0" \
+  "$(grep -A18 'id: barLayoutItem' "$settings_qml" | grep -c 'focusedItemIndex === 0')" "1"
+
 check "launcher settings exposes the independent Surface Material control" \
   "$(grep -c 'label: "Surface Material"' "$settings_qml")" "1"
 
+check "launcher settings orders Surface Color with default Black first" \
+  "$(grep -A6 'id: frameColorModeItem' "$settings_qml" | grep -c '{ id: "black", label: "Black" }')" "1"
+
+check "launcher settings orders Surface Material with default Glass first" \
+  "$(grep -A6 'id: surfaceMaterialItem' "$settings_qml" | grep -c '{ id: "glass", label: "Glass" }')" "1"
+
 check "launcher settings offers Solid and Glass material options" \
-  "$(( $(grep -c '{ id: "solid", label: "Solid" }' "$settings_qml") + $(grep -c '{ id: "glass", label: "Glass" }' "$settings_qml") ))" "2"
+  "$(( $(grep -c '{ id: "glass", label: "Glass" }' "$settings_qml") + $(grep -c '{ id: "solid", label: "Solid" }' "$settings_qml") ))" "2"
 
 check "bar reads the new bar surface state file" \
   "$(grep -c 'readonly property string barSurfaceStatePath: root.stateHome + "/ruixen/bar-surface.json"' "$bar_qml")" "1"

@@ -40,11 +40,11 @@ run_install() {
 fake_home="$(mktemp -d)"
 trap 'rm -rf "$fake_home"' EXIT
 
-# --- Case 1: fresh install defaults to "on" ---------------------------
+# --- Case 1: fresh install defaults to half-radius --------------------
 run_install "$fake_home" || { cat "$fake_home/install.out" >&2; exit 1; }
 looknfeel_link="$fake_home/.config/hypr/looknfeel.lua"
-check "fresh install: defaults to the ruixen (on) variant" \
-  "$(basename "$(readlink "$looknfeel_link")")" "looknfeel.ruixen.lua"
+check "fresh install: defaults to the half-radius variant" \
+  "$(basename "$(readlink "$looknfeel_link")")" "looknfeel.half.lua"
 
 # --- Case 2: user turns it off (same real effect as ruixen-lookfeel.sh
 # off -- a plain re-symlink to the already-deployed default variant,

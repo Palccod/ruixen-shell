@@ -126,6 +126,8 @@ BarWidget {
   // pinnable or not in the plugin group"), so pinning/unpinning them
   // through this dropdown is exactly the intended interaction, not
   // something to guard against.
+  // ruixen.capturestatus stays pinnable now: it is a fixed-width
+  // start/stop recording control, not an active-only structural slot.
   // omarchy.active-window is also excluded -- ruixen.notch's own
   // collapsed player pill already shows the active window's title when
   // nothing is playing, so offering it here as a separate pinnable bar

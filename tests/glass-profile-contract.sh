@@ -58,12 +58,16 @@ check "looknfeel.square.lua reads the same path" \
 
 check "SettingsContent.qml validates against exactly frosted/transparent" \
   "$(grep -c 'profile !== "frosted" && profile !== "transparent"' "$settings_qml")" "1"
+check "SettingsContent.qml defaults Glass Effect to transparent" \
+  "$(grep -c 'property string glassProfile: "transparent"' "$settings_qml")" "1"
+check "SettingsContent.qml's own Glass picker orders default Transparent first" \
+  "$(grep -A6 'id: glassProfileItem' "$settings_qml" | grep -c '{ id: "transparent", label: "Transparent" }')" "1"
 check "SettingsContent.qml's own Glass picker offers exactly those two ids" \
-  "$(grep -c '{ id: "frosted", label: "Frosted" }\|{ id: "transparent", label: "Transparent" }' "$settings_qml")" "2"
-check "looknfeel.ruixen.lua defaults to frosted, only flips on an exact transparent match" \
-  "$(grep -c 'if line == "transparent" then return line end' "$ruixen_lua")" "1"
+  "$(grep -c '{ id: "transparent", label: "Transparent" }\|{ id: "frosted", label: "Frosted" }' "$settings_qml")" "2"
+check "looknfeel.ruixen.lua defaults to transparent, only flips on an exact frosted match" \
+  "$(grep -c 'if line == "frosted" then return line end' "$ruixen_lua")" "1"
 check "looknfeel.square.lua has the identical reader (independent files, no shared base)" \
-  "$(grep -c 'if line == "transparent" then return line end' "$square_lua")" "1"
+  "$(grep -c 'if line == "frosted" then return line end' "$square_lua")" "1"
 
 # --- both Lua files agree on the exact numeric values per profile ---------
 

@@ -91,12 +91,12 @@ local ruixenGapsIn = readSpacingProfile() == "tight" and 0 or 5
 local function readGlassProfile()
   local path = (os.getenv("HOME") or "") .. "/.local/state/ruixen/glass-profile"
   local f = io.open(path, "r")
-  if not f then return "frosted" end
-  local line = f:read("*l") or "frosted"
+  if not f then return "transparent" end
+  local line = f:read("*l") or "transparent"
   f:close()
   line = line:gsub("%s+", "")
-  if line == "transparent" then return line end
-  return "frosted"
+  if line == "frosted" then return line end
+  return "transparent"
 end
 
 local ruixenGlassProfile = readGlassProfile()
