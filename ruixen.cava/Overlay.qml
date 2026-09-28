@@ -185,18 +185,25 @@ Item {
     color: "transparent"
 
     WlrLayershell.namespace: "ruixen-cava"
-    // Bottom, not Overlay -- direct live report after shipping with
-    // Overlay ("its layered kinda wrong, its over the frame and the
-    // hyprland terminal windows etc... it should sit on the wallpaper
-    // but not over the frame shell"). A decorative desktop effect wants
-    // to draw on the wallpaper BEHIND every window, not above them --
-    // Overlay (this repo's frame-widget/notch layer, ABOVE normal
-    // windows) was never the right layer for that at all. wlr-layer-
-    // shell stacking is background < bottom < [normal windows] < top <
-    // overlay -- Bottom sits right where ruixen.wallpaper's own
-    // WlrLayer.Background ends and normal
-    // windows begin, exactly "on the wallpaper, not over the frame."
-    WlrLayershell.layer: WlrLayer.Bottom
+    // Background, not Bottom -- direct live follow-up after Bottom
+    // itself turned out not to fix the original complaint: "before the
+    // visualizer came behind the frame, right now its overlapping it."
+    // Bottom (this file's own previous fix, after an earlier live report
+    // that Overlay sat over the frame and every real window) assumed the
+    // frame sat on a higher layer than Bottom -- true when that fix
+    // landed, no longer true now that ruixen.bar's own FrameWindow is
+    // ALSO WlrLayer.Bottom (see its own comment: BarPanel needs to
+    // render on top of it, not the reverse). Two windows sharing one
+    // wlr-layer-shell layer have no guaranteed relative stacking order --
+    // it falls back to mapping order, which can and did flip depending
+    // on which plugin's window got (re)created most recently. Background
+    // is the one layer guaranteed strictly below Bottom regardless of
+    // mapping order -- same layer ruixen.wallpaper itself uses, which is
+    // fine here: a decorative, drawn-on-the-wallpaper effect competing
+    // with the actual wallpaper for exact stacking is far less
+    // noticeable than competing with the frame's own edge or a real
+    // window.
+    WlrLayershell.layer: WlrLayer.Background
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     // Never reserves screen space -- a decorative strip, not a bar.
     exclusionMode: ExclusionMode.Ignore
