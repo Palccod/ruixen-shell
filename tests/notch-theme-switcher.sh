@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Guards the notch Wallpapers tab's Theme mode: the WALLPAPER SWITCHER /
-# THEME SWITCHER segmented control above the search box (direct request:
-# "the 2 options will be above the search box, so theme will say search
-# themes...") plus the SUPER+CTRL+SPACE keybind that summons the tab
-# (toggleWallpapers). Three layers must stay in agreement or the feature
-# silently breaks somewhere:
+# Guards the notch Wallpapers tab's Theme mode: a WALLPAPER/THEME sliding
+# tab that shares one row with the search box, search on the left and the
+# tab pill on the right (through several direct follow-ups -- two stacked
+# rows collapsed into one, two separate chips merged into one sliding
+# pill, then the pill moved from before the search box to after it) --
+# plus the SUPER+CTRL+SPACE keybind that summons the tab (toggleWallpapers).
+# Three layers must stay in agreement or the feature silently breaks
+# somewhere:
 #   - bars/widgets/ruixen.notch/list-themes.sh -- the shipped discovery
 #     script the live picker AND this test both run (same
 #     extract-so-tests-cannot-drift rationale as
 #     tests/wallpaper-discovery-format.sh, #17),
-#   - WallpapersContent.qml / Overlay.qml -- the segmented control, the
+#   - WallpapersContent.qml / Overlay.qml -- the sliding tab, the
 #     theme grid, the placeholder swap, and the IPC toggle,
 #   - install.sh -- the recommended-keybind wiring.
 set -Eeuo pipefail
@@ -100,11 +102,11 @@ check "list-themes.sh skips dot-dirs" \
 check "WallpapersContent carries the mediaMode state" \
   "$(grep -c 'property string mediaMode: "wallpapers"' "$content_qml")" "1"
 
-check "segmented control offers both switchers" \
-  "$(grep -c '"WALLPAPER SWITCHER"\|"THEME SWITCHER"' "$content_qml")" "2"
+check "sliding tab offers both switchers" \
+  "$(grep -c '"WALLPAPER"\|"THEME"' "$content_qml")" "2"
 
-check "segmented control sits above the search box in the layout" \
-  "$(awk 'BEGIN{seg=0;box=0} /WALLPAPER SWITCHER \/ THEME SWITCHER segmented/ && seg==0 {seg=NR} /id: searchInput/ && box==0 {box=NR} END{if (seg>0 && box>0 && seg<box) print "yes"; else print "no"}' "$content_qml")" "yes"
+check "search box sits ahead of the mode tab in the layout (tab on the right)" \
+  "$(awk 'BEGIN{box=0;tab=0} /id: searchInput/ && box==0 {box=NR} /id: modeTab/ && tab==0 {tab=NR} END{if (box>0 && tab>0 && box<tab) print "yes"; else print "no"}' "$content_qml")" "yes"
 
 check "placeholder follows the mode" \
   "$(grep -c 'root.mediaMode === "themes" ? "Search themes..." : "Search wallpapers..."' "$content_qml")" "1"
@@ -131,7 +133,10 @@ check "wallpaper block shows only in wallpaper mode" \
   "$(grep -c 'visible: root.mediaMode === "wallpapers"' "$content_qml")" "1"
 
 check "theme grid fills the row instead of leaving a dead right strip" \
-  "$(grep -c 'readonly property int columns: Math.max(1, Math.floor((themeGridWrap.width + 10) / 170))' "$content_qml")" "1"
+  "$(grep -c 'readonly property int columns: Math.max(1, Math.floor(themeGridWrap.width / 170))' "$content_qml")" "1"
+
+check "theme grid width is exactly columns*cellWidth, not a smaller value that would undercount columns" \
+  "$(grep -c 'width: themeGrid.columns \* themeGrid.cellWidth' "$content_qml")" "1"
 
 check "theme grid is centered on its used width, not panel-wide" \
   "$(grep -c 'anchors.horizontalCenter: parent.horizontalCenter' "$content_qml")" "1"

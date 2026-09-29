@@ -16,11 +16,13 @@ import Quickshell.Widgets
 // tab genuinely has "space left... like a right panel" (this
 // sidebar's own original request) that the launcher's card doesn't.
 //
-// This file is now ALSO the notch's own Theme switcher (the
-// WALLPAPER SWITCHER / THEME SWITCHER segmented control above the
-// search box -- direct request: "the 2 options will be above the
-// search box, so theme will say search themes..."). That mode is
-// deliberately NOT synced to the launcher copy: the keybind that
+// This file is now ALSO the notch's own Theme switcher (a WALLPAPER/
+// THEME sliding tab sharing one row with the search box, tab pill on
+// the right and search filling the rest -- through several follow-ups:
+// two stacked rows collapsed into one, two separate chips merged into
+// one sliding pill, then the pill moved from the search box's left to
+// its right). That mode is deliberately NOT synced to the launcher
+// copy: the keybind that
 // summons this tab (ruixen.notch toggleWallpapers) is the whole point
 // of the feature, the launcher card stays a pure wallpaper picker, and
 // theme discovery/application (list-themes.sh + omarchy-theme-set)
@@ -157,9 +159,9 @@ Item {
   // useful than having to choose one or the other.
   property string kindFilter: "all"
 
-  // ---- Theme mode ---- (WALLPAPER SWITCHER / THEME SWITCHER segmented
-  // control above the search box; see the header comment for why this
-  // is notch-only and not synced to the launcher copy).
+  // ---- Theme mode ---- (the WALLPAPER/THEME sliding tab to the right
+  // of the search box; see the header comment for why this is
+  // notch-only and not synced to the launcher copy).
   //
   // Which half of the segmented control is showing: "wallpapers" (the
   // picker this file has always been) or "themes" (a grid of installed
@@ -488,124 +490,193 @@ Item {
     anchors.fill: parent
     spacing: 10
 
-    // WALLPAPER SWITCHER / THEME SWITCHER segmented control -- the
-    // first thing in the tab, above the search box, per direct request
-    // ("when the tab opens on top there should 2 options on top ...
-    // the 2 options will be above the search box"). Two equal halves
-    // spanning the full panel width, styled after this sidebar's own
-    // filter chips (same radius/border/selected-accent recipe this
-    // plugin already uses -- plain QML primitives, no qs.Ui) rather
-    // than any new control shape. Selected half lights its border and
-    // label in the accent; switching clears the shared search box (see
-    // setMediaMode's own comment) and swaps the grid below.
+    // Search + WALLPAPER/THEME tab, collapsed into one row (direct
+    // follow-up -- "instead of the two tabs up top and the search
+    // input, collapse them into one row", then "put them in an actual
+    // tab together but a sliding between them", then "instead of in
+    // front of the search, maybe after it... on the right"). Search
+    // box claims whatever's left via Layout.fillWidth, tab pill sits
+    // fixed-width on the right.
+    //
+    // rightMargin per a further follow-up ("this row with tab
+    // stretches too far to the notch edge... it should line up at the
+    // end with others") -- with none, the pill's flat corner sat
+    // right against the panel's own rounded edge, closer to it than
+    // the filter sidebar below ever gets (that sidebar's own fillWidth
+    // column centers its fixed 76px chips within its leftover space,
+    // which naturally keeps them off the true edge by about this much).
+    // No leftMargin needed -- the search box's left edge already lines
+    // up with the wallpaper grid's own left edge with zero margin.
     RowLayout {
       Layout.fillWidth: true
       Layout.maximumWidth: Number.POSITIVE_INFINITY
+      Layout.rightMargin: 12
       spacing: 8
 
-      Repeater {
-        model: [
-          { mode: "wallpapers", label: "WALLPAPER SWITCHER" },
-          { mode: "themes", label: "THEME SWITCHER" }
-        ]
+      // Search box -- plain TextInput + placeholder overlay, matching
+      // this plugin's existing self-contained style (no qs.Ui.TextField
+      // pulled in here, unlike ruixen.weather's location search -- that
+      // one already has qs.Ui available; this plugin deliberately stays
+      // on plain QML primitives throughout, see DashboardContent.qml).
+      Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 40
+        radius: 12
+        color: Qt.rgba(1, 1, 1, 0.06)
 
-        Rectangle {
-          id: modeChip
-          required property var modelData
-          readonly property bool selected: root.mediaMode === modeChip.modelData.mode
-
-          Layout.fillWidth: true
-          Layout.preferredHeight: 32
-          radius: 10
-          color: modeChip.selected ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
-          border.width: 1
-          border.color: modeChip.selected ? root.accent : Qt.rgba(1, 1, 1, 0.12)
-
-          Text {
-            anchors.centerIn: parent
-            text: modeChip.modelData.label
-            font.family: root.fontFamily
-            font.pixelSize: 10
-            font.weight: modeChip.selected ? Font.DemiBold : Font.Normal
-            color: modeChip.selected ? root.accent : root.muted
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.setMediaMode(modeChip.modelData.mode)
-          }
-        }
-      }
-    }
-
-    // Search row -- plain TextInput + placeholder overlay, matching
-    // this plugin's existing self-contained style (no qs.Ui.TextField
-    // pulled in here, unlike ruixen.weather's location search -- that
-    // one already has qs.Ui available; this plugin deliberately stays
-    // on plain QML primitives throughout, see DashboardContent.qml).
-    // Full Layout.fillWidth here now spans the whole panel again,
-    // sidebar included -- it's a sibling of the RowLayout below, not
-    // inside it.
-    Rectangle {
-      Layout.fillWidth: true
-      Layout.preferredHeight: 40
-      radius: 12
-      color: Qt.rgba(1, 1, 1, 0.06)
-
-      TextInput {
-        id: searchInput
-        anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 34
-        verticalAlignment: TextInput.AlignVCenter
-        color: root.textColor
-        font.family: root.fontFamily
-        font.pixelSize: 12
-        clip: true
-
-        onTextChanged: root.searchText = text
-
-        Text {
-          anchors.verticalCenter: parent.verticalCenter
-          // Placeholder follows the segmented control -- direct
-          // request: "so theme will say search themes...".
-          text: root.mediaMode === "themes" ? "Search themes..." : "Search wallpapers..."
-          color: root.muted
+        TextInput {
+          id: searchInput
+          anchors.fill: parent
+          anchors.leftMargin: 12
+          anchors.rightMargin: 34
+          verticalAlignment: TextInput.AlignVCenter
+          color: root.textColor
           font.family: root.fontFamily
           font.pixelSize: 12
-          visible: searchInput.text.length === 0
+          clip: true
+
+          onTextChanged: root.searchText = text
+
+          // Magnify glyph in front of the placeholder -- direct
+          // request ("add a magnify icon in front of the text so
+          // Magnify Search wallpapers..."). fa-search (U+F002), the
+          // same glyph/family ruixen.settings' own sidebar search
+          // already uses -- placeholder-only (hidden once typing
+          // starts), not a persistent left-side icon, since this
+          // search box already has its own separate clear "✕" button
+          // on the right; no need for a second one doubling as this.
+          Text {
+            id: searchPlaceholderIcon
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            visible: searchInput.text.length === 0
+            text: ""
+            color: root.muted
+            font.family: root.fontFamily
+            font.pixelSize: 11
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: searchPlaceholderIcon.right
+            anchors.leftMargin: 6
+            // Placeholder follows the segmented control -- direct
+            // request: "so theme will say search themes...".
+            text: root.mediaMode === "themes" ? "Search themes..." : "Search wallpapers..."
+            color: root.muted
+            font.family: root.fontFamily
+            font.pixelSize: 12
+            visible: searchInput.text.length === 0
+          }
+        }
+
+        // Clear button -- direct request ("i type space then select the
+        // wallpaper i like then press the x to clear in the input field
+        // right side to clear it"). Sits in the rightMargin space
+        // reserved above so it never overlaps typed text. Same "✕"
+        // glyph/placement LauncherContent.qml's own app search already
+        // uses, but red per this request rather than muted/textColor --
+        // #e05252 is this plugin's own established red (DashboardContent.qml/
+        // MetricsContent.qml/Overlay.qml all use it for the same
+        // warning-ish/critical-toggle meaning).
+        Text {
+          visible: searchInput.text.length > 0
+          anchors.right: parent.right
+          anchors.rightMargin: 14
+          anchors.verticalCenter: parent.verticalCenter
+          text: "✕"
+          font.pixelSize: 13
+          color: clearSearchMouse.containsMouse ? Qt.lighter("#e05252", 1.25) : "#e05252"
+
+          MouseArea {
+            id: clearSearchMouse
+            anchors.centerIn: parent
+            width: 20
+            height: 20
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              searchInput.text = ""
+              searchInput.forceActiveFocus()
+            }
+          }
         }
       }
 
-      // Clear button -- direct request ("i type space then select the
-      // wallpaper i like then press the x to clear in the input field
-      // right side to clear it"). Sits in the rightMargin space
-      // reserved above so it never overlaps typed text. Same "✕"
-      // glyph/placement LauncherContent.qml's own app search already
-      // uses, but red per this request rather than muted/textColor --
-      // #e05252 is this plugin's own established red (DashboardContent.qml/
-      // MetricsContent.qml/Overlay.qml all use it for the same
-      // warning-ish/critical-toggle meaning).
-      Text {
-        visible: searchInput.text.length > 0
-        anchors.right: parent.right
-        anchors.rightMargin: 14
-        anchors.verticalCenter: parent.verticalCenter
-        text: "✕"
-        font.pixelSize: 13
-        color: clearSearchMouse.containsMouse ? Qt.lighter("#e05252", 1.25) : "#e05252"
+      Rectangle {
+        id: modeTab
+        // Both halves sized off the wider label (WALLPAPER) so the
+        // thumb sliding to either side is the same width -- an uneven
+        // thumb would visibly resize on every switch instead of just
+        // sliding.
+        readonly property real chipWidth: Math.max(wallpaperLabel.implicitWidth, themeLabel.implicitWidth) + 28
 
-        MouseArea {
-          id: clearSearchMouse
-          anchors.centerIn: parent
-          width: 20
-          height: 20
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onClicked: {
-            searchInput.text = ""
-            searchInput.forceActiveFocus()
+        Layout.preferredWidth: modeTab.chipWidth * 2 + 4
+        Layout.preferredHeight: 40
+        radius: 10
+        color: Qt.rgba(1, 1, 1, 0.04)
+
+        // The sliding thumb -- declared before the labels below so it
+        // paints behind them, animates x only (fixed width/height), so
+        // it reads as one pill moving rather than a second element.
+        Rectangle {
+          x: root.mediaMode === "wallpapers" ? 2 : modeTab.chipWidth + 2
+          y: 2
+          width: modeTab.chipWidth
+          height: parent.height - 4
+          radius: 8
+          color: Qt.rgba(1, 1, 1, 0.08)
+          border.width: 1
+          border.color: root.accent
+
+          Behavior on x {
+            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+          }
+        }
+
+        Row {
+          anchors.fill: parent
+
+          Item {
+            width: modeTab.chipWidth
+            height: parent.height
+
+            Text {
+              id: wallpaperLabel
+              anchors.centerIn: parent
+              text: "WALLPAPER"
+              font.family: root.fontFamily
+              font.pixelSize: 10
+              font.weight: root.mediaMode === "wallpapers" ? Font.DemiBold : Font.Normal
+              color: root.mediaMode === "wallpapers" ? root.accent : root.muted
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setMediaMode("wallpapers")
+            }
+          }
+
+          Item {
+            width: modeTab.chipWidth
+            height: parent.height
+
+            Text {
+              id: themeLabel
+              anchors.centerIn: parent
+              text: "THEME"
+              font.family: root.fontFamily
+              font.pixelSize: 10
+              font.weight: root.mediaMode === "themes" ? Font.DemiBold : Font.Normal
+              color: root.mediaMode === "themes" ? root.accent : root.muted
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setMediaMode("themes")
+            }
           }
         }
       }
@@ -1057,25 +1128,47 @@ Item {
       // grid to create equal space on right and left"). The sizing
       // source is the WRAPPER's width, not the grid's own -- binding
       // width -> columns -> width would be the circular kind.
+      //
+      // width MUST be columns*cellWidth, not anything smaller -- a
+      // follow-up fix ("grid theme is a bit narrower than what it
+      // should be", then, after a first attempt at that, "the grid in
+      // theme is only three column, if it was 4 it would fit nicely").
+      // The first attempt shaved the trailing per-cell gap off of
+      // width to reclaim it as tile size, which sounds harmless but
+      // GridView decides how many columns it actually lays out per
+      // row as floor(width / cellWidth) -- an internal computation
+      // that has no idea about our own "columns" property. Undersize
+      // width even by a few px below a full columns*cellWidth and
+      // GridView silently renders one fewer column than intended.
+      // width stays exactly columns*cellWidth here; the real fix for
+      // "narrower than it should be" is tileWidth below, which had its
+      // own separate bug.
       anchors.horizontalCenter: parent.horizontalCenter
-      width: themeGrid.columns * (themeGrid.tileWidth + 10)
+      width: themeGrid.columns * themeGrid.cellWidth
       height: parent.height
       clip: true
       boundsBehavior: Flickable.StopAtBounds
       reuseItems: true
       // Fit as many 170px-minimum columns as the real width allows,
       // then stretch each cell to consume the row (at the panel's
-      // ~790px that turns 4x170+110-dead into 4x~190 with the ~30px
-      // remainder split around the centered grid). The 10px right/
-      // bottom gap per cell -- the same rhythm the wallpaper grid's
-      // 170/110 cells produce -- is kept by construction (cell = tile
-      // + 10), so the tiles themselves grow (~160 -> ~180) rather than
-      // the gaps ballooning. Floor, not round, on the cell math: a
-      // fractional cellWidth would make GridView round cell origins
-      // independently and visibly tear the grid rhythm column to
-      // column.
-      readonly property int columns: Math.max(1, Math.floor((themeGridWrap.width + 10) / 170))
-      readonly property int tileWidth: Math.max(160, Math.floor((themeGridWrap.width - 10 * (columns - 1)) / columns) - 10)
+      // ~790px that turns 4x170+110-dead into 4x~197, using nearly all
+      // of it). The 10px right/bottom gap per cell -- the same rhythm
+      // the wallpaper grid's 170/110 cells produce -- is kept by
+      // construction (cellWidth = tile + 10), so the tiles themselves
+      // grow (~160 -> ~187) rather than the gaps ballooning. Floor,
+      // not round, on the cell math: a fractional cellWidth would make
+      // GridView round cell origins independently and visibly tear the
+      // grid rhythm column to column.
+      //
+      // tileWidth's own bug (the actual cause of "a bit narrower than
+      // it should be"): the previous formula computed the correct max
+      // tile size for the available width, THEN subtracted an extra,
+      // unearned 10px on top -- as if each column needed its own gap
+      // reserved twice. floor(width / columns) - 10 reserves the gap
+      // exactly once per column (cellWidth = tile + 10, times columns,
+      // covers all of it), nothing left over to wrongly subtract again.
+      readonly property int columns: Math.max(1, Math.floor(themeGridWrap.width / 170))
+      readonly property int tileWidth: Math.max(160, Math.floor(themeGridWrap.width / columns) - 10)
       cellWidth: themeGrid.tileWidth + 10
       cellHeight: Math.round(themeGrid.tileWidth * 100 / 160) + 10
       model: root.filteredThemes

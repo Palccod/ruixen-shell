@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Theme discovery for the notch Wallpapers tab's own Theme mode (the
-# WALLPAPER SWITCHER / THEME SWITCHER segmented control) -- same
-# extraction rationale as list-wallpapers.sh's own header: the live
+# WALLPAPER/THEME sliding tab) -- same extraction rationale as
+# list-wallpapers.sh's own header: the live
 # picker (WallpapersContent.qml's themeListProc) and the test
 # (tests/notch-theme-switcher.sh) both run THIS exact file, so there is
 # only one implementation to keep correct. Lives inside ruixen.notch/

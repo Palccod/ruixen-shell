@@ -96,7 +96,7 @@ hl.unbind("SUPER + CTRL + SPACE") -- previously: Background switcher
 o.bind("SUPER + CTRL + SPACE", "Ruixen wallpapers", "omarchy-shell ruixen.notch toggleWallpapers")
 ```
 
-That tab is also the notch's theme switcher: a WALLPAPER SWITCHER / THEME
-SWITCHER segmented control above its search box, where the theme half
-lists every installed Omarchy theme and clicking one runs the real
+That tab is also the notch's theme switcher: a WALLPAPER/THEME sliding
+tab to the right of its search box, where the theme half lists every
+installed Omarchy theme and clicking one runs the real
 `omarchy-theme-set`.
